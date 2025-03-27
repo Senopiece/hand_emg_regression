@@ -50,14 +50,17 @@ class emg2poseSessionSlice(Dataset):
 
         joint_indices = range(emg_start, emg_end, self.emg_samples_per_frame)
 
-        with h5py.File(self.h5_path, "r") as f:
-            timeseries = f["emg2pose"]["timeseries"]  # type: ignore
-            joint_angles = timeseries["joint_angles"]  # type: ignore
-            x = {
-                "emg_chunk": timeseries["emg"][emg_start:emg_end],  # type: ignore
-                "joint_chunk": joint_angles[joint_indices],  # type: ignore
-            }
-            y = joint_angles[emg_end]  # type: ignore
+        try:
+            with h5py.File(self.h5_path, "r") as f:
+                timeseries = f["emg2pose"]["timeseries"]  # type: ignore
+                joint_angles = timeseries["joint_angles"]  # type: ignore
+                x = {
+                    "emg_chunk": timeseries["emg"][emg_start:emg_end],  # type: ignore
+                    "joint_chunk": joint_angles[joint_indices],  # type: ignore
+                }
+                y = joint_angles[emg_end]  # type: ignore
+        except Exception as e:
+            raise Exception(f"Errored in {self.h5_path}") from e
 
         return self.transform(x, y)
 
@@ -137,16 +140,38 @@ def emg2pose_slices(base_path: str):
                 e[2],
             ),
             [
-                ("1", 23000, 38000),
-                ("1", 45000, 60000),
-                ("1", 100000, 120000),
-                ("10", 0, 35000),
-                ("10", 101000, 166715),
-                ("11", 10000, 35000),
-                ("11", 55000, 75000),
-                ("12", 0, 9000),
-                ("12", 11000, 30000),
-                ("12", 35000, 39000),
+                (1, 23000, 38000),
+                (1, 45000, 60000),
+                (1, 100000, 120000),
+                (2, 1000, 16000),
+                (2, 16500, 50000),
+                (2, 64000, 118000),
+                (2, 120000, 128000),
+                (3, 1100, 16000),
+                (3, 51000, 62966),
+                (4, 1600, 11900),
+                (4, 20000, 32400),
+                (4, 101000, 123667),
+                (5, 12000, 35000),
+                (5, 39000, 50000),
+                (5, 68000, 111000),
+                (5, 120000, 130000),
+                (6, 1000, 16000),
+                (6, 31000, 105000),
+                (6, 107000, 132000),
+                (6, 135000, 156754),
+                (7, 1000, 49000),
+                (7, 50000, 85000),
+                (7, 86000, 135706),
+                (8, 0, 133000),
+                (8, 135000, 148923),
+                (10, 0, 35000),
+                (10, 101000, 166715),
+                (11, 10000, 35000),
+                (11, 55000, 75000),
+                (12, 0, 9000),
+                (12, 11000, 30000),
+                (12, 35000, 39000),
             ],
         )
     )
