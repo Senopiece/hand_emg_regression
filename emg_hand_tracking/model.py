@@ -60,10 +60,10 @@ class Model(pl.LightningModule):
                 in_channels=channels, out_channels=1024, kernel_size=101, padding=50
             ),
             nn.Flatten(),  # Flattens from (B, 1024, total_seq_length) to (B, 1024 * total_seq_length)
-            nn.ReLU(),
             nn.Linear(1024 * total_seq_length, 1024),
             nn.ReLU(),
             nn.Linear(1024, 10),
+            nn.ReLU(),
         )
 
         self.prev_frames_squeezer = nn.Sequential(
@@ -72,16 +72,15 @@ class Model(pl.LightningModule):
             nn.Linear(40, 20),
             nn.ReLU(),
             nn.Linear(20, 10),
+            nn.ReLU(),
         )
 
         self.composer = nn.Sequential(
-            nn.ReLU(),
             nn.Linear(20, 10),
             nn.ReLU(),
             nn.Linear(10, 20),
+            nn.ReLU(),
         )
-
-        self.loss_fn = nn.MSELoss()
 
     def forward(self, x):
         """
@@ -126,13 +125,16 @@ class Model(pl.LightningModule):
 
         # Do the same for ground-truth angles.
         y_bct = y.unsqueeze(-1)  # (B, 20, 1)
-        landmarks_gt = forward_kinematics(
-            y_bct, self.hm
-        )  # shape: (B, 1, num_landmarks, 3)
+        landmarks_gt = forward_kinematics(y_bct, self.hm)
         landmarks_gt = landmarks_gt.squeeze(1)  # shape: (B, num_landmarks, 3)
 
-        # Compute MSE loss on the 3D landmark representations.
-        loss = self.loss_fn(landmarks_pred, landmarks_gt)
+        # Calculate sum of squared errors per sample and divide by number of landmarks.
+        loss_per_sample = torch.mean(
+            torch.sum((landmarks_pred - landmarks_gt) ** 2, dim=2), dim=1
+        )
+
+        # Average loss over the batch.
+        loss = loss_per_sample.mean()
         self.log(f"{name}_loss", loss)
         return loss
 
