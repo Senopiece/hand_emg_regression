@@ -29,7 +29,7 @@ def main(dataset_path: str):
     )
 
     trainer = Trainer(
-        max_epochs=100,
+        max_epochs=1000,
         logger=TensorBoardLogger("logs", name="emg_model"),
     )
 
