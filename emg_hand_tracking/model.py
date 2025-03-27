@@ -33,82 +33,15 @@ def _handmodel2device(hm: HandModel, device):
     )
 
 
-class Model(pl.LightningModule):
-    def __init__(
-        self,
-        emg_samples_per_frame: int,
-        frames_per_item: int,
-        channels: int,
-    ):
-        """
-        Parameters:
-            emg_samples_per_frame: Number of samples per frame.
-            frames_per_item: Number of frames per data item.
-            channels: Number of channels in the EMG signal.
-        """
+class BaseModel(pl.LightningModule):
+    def __init__(self):
         super().__init__()
-        self.save_hyperparameters()
-
         self.hm = load_default_hand_model()
-
-        # Total sequence length (time dimension)
-        total_seq_length = emg_samples_per_frame * frames_per_item
-
-        # Conv1d expects (B, channels, sequence_length)
-        self.emg_squeezer = nn.Sequential(
-            nn.Conv1d(
-                in_channels=channels, out_channels=1024, kernel_size=101, padding=50
-            ),
-            nn.Flatten(),  # Flattens from (B, 1024, total_seq_length) to (B, 1024 * total_seq_length)
-            nn.Linear(1024 * total_seq_length, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 10),
-            nn.ReLU(),
-        )
-
-        self.prev_frames_squeezer = nn.Sequential(
-            nn.Linear(frames_per_item * 20, 40),
-            nn.ReLU(),
-            nn.Linear(40, 20),
-            nn.ReLU(),
-            nn.Linear(20, 10),
-            nn.ReLU(),
-        )
-
-        self.composer = nn.Sequential(
-            nn.Linear(20, 10),
-            nn.ReLU(),
-            nn.Linear(10, 20),
-        )
-
-    def forward(self, x):
-        """
-        x["emg_chunk"]: (B, T, C) where T = emg_samples_per_frame * frames_per_item
-        x["joint_chunk"]: (B, frames_per_item, 20)
-        """
-        emg = x["emg_chunk"]  # (B, T, C)
-        joint_ctx = x["joint_chunk"]  # (B, frames_per_item, 20)
-
-        self.hm = _handmodel2device(self.hm, self.device)
-
-        # Prepare EMG for conv
-        emg = emg.permute(0, 2, 1)  # (B, C, T)
-        emg_features = self.emg_squeezer(emg)  # (B, 10)
-
-        # Flatten joint context and pass through squeezer
-        joint_features = joint_ctx.view(
-            joint_ctx.size(0), -1
-        )  # (B, frames_per_item * 20)
-        joint_features = self.prev_frames_squeezer(joint_features)  # (B, 10)
-
-        # Combine both and pass through final composer
-        combined = torch.cat([emg_features, joint_features], dim=1)  # (B, 20)
-        output = self.composer(combined)  # (B, 20)
-
-        return output
 
     def _step(self, name: str, batch):
         x, y = batch
+
+        self.hm = _handmodel2device(self.hm, self.device)
 
         # Predicted joint angles: shape (B, 20)
         y_hat = self(x)
@@ -145,3 +78,88 @@ class Model(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=1e-3)
+
+    def forward(self, x):
+        """
+        x["emg_chunk"]: (B, T, C) where T = emg_samples_per_frame * frames_per_item
+        x["joint_chunk"]: (B, frames_per_item, 20)
+        """
+        return self._forward(x["emg_chunk"], x["joint_chunk"])
+
+
+class MeanProbeModel(BaseModel):
+    def __init__(
+        self,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.params = nn.Parameter(torch.rand(20))
+
+    def _forward(self, emg, joint_ctx):
+        batch_size = emg.shape[0]
+        return self.params.to(self.device).unsqueeze(0).expand(batch_size, -1)
+
+
+class Model(BaseModel):
+    def __init__(
+        self,
+        emg_samples_per_frame: int,
+        frames_per_item: int,
+        channels: int,
+    ):
+        """
+        Parameters:
+            emg_samples_per_frame: Number of samples per frame.
+            frames_per_item: Number of frames per data item.
+            channels: Number of channels in the EMG signal.
+        """
+        super().__init__()
+        self.save_hyperparameters()
+
+        # Total sequence length (time dimension)
+        total_seq_length = emg_samples_per_frame * frames_per_item
+
+        # Conv1d expects (B, channels, sequence_length)
+        self.emg_squeezer = nn.Sequential(
+            nn.Conv1d(
+                in_channels=channels, out_channels=1024, kernel_size=101, padding=50
+            ),
+            nn.Flatten(),  # Flattens from (B, 1024, total_seq_length) to (B, 1024 * total_seq_length)
+            nn.Linear(1024 * total_seq_length, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 10),
+            nn.ReLU(),
+        )
+
+        self.frames_squeezer = nn.Sequential(
+            nn.Linear(frames_per_item * 20, 40),
+            nn.ReLU(),
+            nn.Linear(40, 20),
+            nn.ReLU(),
+            nn.Linear(20, 10),
+            nn.ReLU(),
+        )
+
+        self.composer = nn.Sequential(
+            nn.Linear(20, 256),
+            nn.ReLU(),
+            nn.Linear(256, 20),
+        )
+
+    def _forward(self, emg, joint_ctx):
+        # Prepare EMG for conv
+        emg = emg.permute(0, 2, 1)  # (B, C, T)
+        emg_features = self.emg_squeezer(emg)  # (B, 10)
+
+        # Flatten joint context and pass through squeezer
+        # (B, frames_per_item * 20)
+        joint_features = joint_ctx.view(joint_ctx.size(0), -1)
+        # (B, 10)
+        joint_features = self.frames_squeezer(joint_features)
+
+        # Combine both and pass through final composer
+        combined = torch.cat([emg_features, joint_features], dim=1)  # (B, 20)
+        output = self.composer(combined)  # (B, 20)
+
+        return output
