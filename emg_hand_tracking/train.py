@@ -9,7 +9,7 @@ from .dataset import DataModule, emg2pose_slices
 from .model import Model
 
 
-def main(dataset_path: str):
+def main(dataset_path: str, checkpoint: str | None = None):
     torch.set_float32_matmul_precision("medium")
 
     emg_samples_per_frame = 32
@@ -22,11 +22,15 @@ def main(dataset_path: str):
         batch_size=64,
     )
 
-    model = Model(
-        emg_samples_per_frame=emg_samples_per_frame,
-        frames_per_item=frames_per_item,
-        channels=16,
-    )
+    if checkpoint is not None:
+        print(f"Loading model from checkpoint: {checkpoint}")
+        model = Model.load_from_checkpoint(checkpoint)
+    else:
+        model = Model(
+            emg_samples_per_frame=emg_samples_per_frame,
+            frames_per_item=frames_per_item,
+            channels=16,
+        )
 
     trainer = Trainer(
         max_epochs=1000,
@@ -48,6 +52,12 @@ if __name__ == "__main__":
         default=env_dataset_path,
         help="Path to the emg2pose directory (can also be set via the DATASET_PATH environment variable)",
     )
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Path to a checkpoint file to load model weights from",
+    )
     args = parser.parse_args()
 
     if args.dataset_path is None:
@@ -55,4 +65,4 @@ if __name__ == "__main__":
             "Please provide a dataset path via the --dataset_path argument or set the DATASET_PATH environment variable."
         )
 
-    main(dataset_path=args.dataset_path)
+    main(dataset_path=args.dataset_path, checkpoint=args.checkpoint)
