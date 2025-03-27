@@ -3,12 +3,15 @@ import argparse
 from dotenv import load_dotenv
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
+import torch
 
 from .dataset import DataModule, emg2pose_slices
 from .model import Model
 
 
 def main(dataset_path: str):
+    torch.set_float32_matmul_precision("medium")
+
     emg_samples_per_frame = 32
     frames_per_item = 6
 
