@@ -6,6 +6,7 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, random_split, ConcatDataset
 from pathlib import Path
 from typing import Sequence, Tuple
+import numpy as np
 
 
 def default_transform(x, y):
@@ -17,52 +18,51 @@ def default_transform(x, y):
     return x, y
 
 
-class emg2poseSessionSlice(Dataset):
+class emg2poseInMemSessionSlice(Dataset):
     def __init__(
         self,
         h5_path: str | Path,
-        start: int,  # emg pos
-        end: int,  # emg pos
+        start: int,  # in emg samples
+        end: int,  # in emg samples
         emg_samples_per_frame: int = 32,
         frames_per_item: int = 6,
         transform=None,
     ):
-        self.h5_path = Path(h5_path)
-        self.emg_samples_per_frame = emg_samples_per_frame
-        self.emg_window_size = emg_samples_per_frame * frames_per_item
-        self.start = start
-        self.transform = transform if transform is not None else default_transform
-
         assert end > start
 
-        self.items_count = (end - start) // self.emg_window_size
+        self.h5_path = Path(h5_path)
+        transform = transform if transform is not None else default_transform
 
-        assert self.items_count > 0
+        emg_window_size = emg_samples_per_frame * frames_per_item
 
-    def __len__(self):
-        return self.items_count
+        with h5py.File(self.h5_path, "r") as f:
+            timeseries = f["emg2pose"]["timeseries"]  # type: ignore
+            joint_angles = timeseries["joint_angles"]  # type: ignore
+            emg = timeseries["emg"]  # type: ignore
 
-    def __getitem__(self, idx):
-        assert idx < self.items_count
-
-        emg_start = self.start + self.emg_window_size * idx
-        emg_end = emg_start + self.emg_window_size
-
-        joint_indices = range(emg_start, emg_end, self.emg_samples_per_frame)
-
-        try:
-            with h5py.File(self.h5_path, "r") as f:
-                timeseries = f["emg2pose"]["timeseries"]  # type: ignore
-                joint_angles = timeseries["joint_angles"]  # type: ignore
+            def load_item(idx):
+                emg_start = start + emg_window_size * idx
+                emg_end = emg_start + emg_window_size
+                joint_indices = range(emg_start, emg_end, emg_samples_per_frame)
                 x = {
-                    "emg_chunk": timeseries["emg"][emg_start:emg_end],  # type: ignore
+                    "emg_chunk": emg[emg_start:emg_end],  # type: ignore
                     "joint_chunk": joint_angles[joint_indices],  # type: ignore
                 }
                 y = joint_angles[emg_end]  # type: ignore
-        except Exception as e:
-            raise Exception(f"Errored in {self.h5_path}") from e
+                return transform(x, y)
 
-        return self.transform(x, y)
+            try:
+                self.items = [
+                    load_item(idx) for idx in range((end - start) // emg_window_size)
+                ]
+            except Exception as e:
+                raise Exception(f"Errored in {self.h5_path}") from e
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, idx):
+        return self.items[idx]
 
 
 class DataModule(LightningDataModule):
@@ -88,7 +88,7 @@ class DataModule(LightningDataModule):
     def setup(self, stage=None):
         full_dataset = ConcatDataset(
             [
-                emg2poseSessionSlice(
+                emg2poseInMemSessionSlice(
                     h5_path=path,
                     start=start,
                     end=end,
