@@ -47,6 +47,9 @@ class Model(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
+        self.hm = load_default_hand_model()
+        self.hm = _handmodel2device(self.hm, self.device)
+
         # Total sequence length (time dimension)
         total_seq_length = emg_samples_per_frame * frames_per_item
 
@@ -109,21 +112,20 @@ class Model(pl.LightningModule):
         # Predicted joint angles: shape (B, 20)
         y_hat = self(x)
 
-        hm = load_default_hand_model()
-        hm = _handmodel2device(hm, self.device)
-
         # Convert predicted angles to BCT format: (B, 20, T) with T=1.
         y_hat_bct = y_hat.unsqueeze(-1)  # shape: (B, 20, 1)
 
         # Compute 3D landmarks for predictions.
         # shape: (B, 1, num_landmarks, 3)
-        landmarks_pred = forward_kinematics(y_hat_bct, hm)
+        landmarks_pred = forward_kinematics(y_hat_bct, self.hm)
         # shape: (B, num_landmarks, 3)
         landmarks_pred = landmarks_pred.squeeze(1)
 
         # Do the same for ground-truth angles.
         y_bct = y.unsqueeze(-1)  # (B, 20, 1)
-        landmarks_gt = forward_kinematics(y_bct, hm)  # shape: (B, 1, num_landmarks, 3)
+        landmarks_gt = forward_kinematics(
+            y_bct, self.hm
+        )  # shape: (B, 1, num_landmarks, 3)
         landmarks_gt = landmarks_gt.squeeze(1)  # shape: (B, num_landmarks, 3)
 
         # Compute MSE loss on the 3D landmark representations.
