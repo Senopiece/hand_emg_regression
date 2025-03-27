@@ -145,6 +145,8 @@ class Model(BaseModel):
             nn.Linear(20, 256),
             nn.ReLU(),
             nn.Linear(256, 20),
+            nn.ReLU(),
+            nn.Linear(20, 20),
         )
 
     def _forward(self, emg, joint_ctx):
