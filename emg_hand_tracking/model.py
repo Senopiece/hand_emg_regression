@@ -7,6 +7,8 @@ from emg2pose.kinematics import HandModel
 
 
 def _handmodel2device(hm: HandModel, device):
+    if hm.joint_rotation_axes.device == device:
+        return hm
     return HandModel(
         joint_rotation_axes=hm.joint_rotation_axes.to(device),
         joint_rest_positions=hm.joint_rest_positions.to(device),
@@ -48,7 +50,6 @@ class Model(pl.LightningModule):
         self.save_hyperparameters()
 
         self.hm = load_default_hand_model()
-        self.hm = _handmodel2device(self.hm, self.device)
 
         # Total sequence length (time dimension)
         total_seq_length = emg_samples_per_frame * frames_per_item
@@ -89,6 +90,8 @@ class Model(pl.LightningModule):
         """
         emg = x["emg_chunk"]  # (B, T, C)
         joint_ctx = x["joint_chunk"]  # (B, frames_per_item, 20)
+
+        self.hm = _handmodel2device(self.hm, self.device)
 
         # Prepare EMG for conv
         emg = emg.permute(0, 2, 1)  # (B, C, T)
