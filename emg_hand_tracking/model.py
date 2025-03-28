@@ -62,7 +62,7 @@ class Model(pl.LightningModule):
                 kernel_size=101,
                 padding=50,
             ),  # -> (B, 1024, T)
-            WindowedApply(
+            WindowedApply(  # separate windows for calculating multiple predictions
                 window_len=self.emg_window_length,
                 step=emg_samples_per_frame,
                 f=nn.Sequential(  # <- (B, 1024, total_seq_length)
@@ -71,27 +71,20 @@ class Model(pl.LightningModule):
                     nn.ReLU(),
                     nn.Linear(1024, 512),
                     nn.ReLU(),
-                    nn.Linear(512, 12),
+                    nn.Linear(512, 64),
                 ),
-            ),  # -> (B, W, 12), S=W
+            ),  # -> (B, W, 64), S=W
         )
 
-        self.frames_features = nn.Sequential(  # <- (B, frames_per_window, 20)
-            nn.Flatten(),
-            nn.Linear(frames_per_window * 20, 80),
+        self.predict = nn.Sequential(
+            nn.Linear(frames_per_window * 20 + 64, 512),
             nn.ReLU(),
-            nn.Linear(80, 20),
+            nn.Linear(512, 512),
             nn.ReLU(),
-            nn.Linear(20, 12),
+            nn.Linear(512, 20),
         )
 
-        self.predict = nn.Sequential(  # <- (B, 12+12)
-            nn.Linear(24, 256),
-            nn.ReLU(),
-            nn.Linear(256, 40),
-            nn.ReLU(),
-            nn.Linear(40, 20),
-        )
+        self.filter = nn.Parameter(torch.rand(frames_per_window + 1))
 
     def _forward(self, emg, initial_poses):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
@@ -99,13 +92,23 @@ class Model(pl.LightningModule):
 
         outputs = []
         for emg_features in windows:
-            joint_features = self.frames_features(initial_poses)  # (B, 12)
+            # (B, frames_per_window * 20)
+            initial_poses_flat = initial_poses.flatten(start_dim=1)
 
             # Concatenate the EMG and joint context features.
-            combined = torch.cat([emg_features, joint_features], dim=1)  # (B, 24)
+            # (B, frames_per_window * 20 + 64)
+            combined = torch.cat([initial_poses_flat, emg_features], dim=1)
             pos_pred = self.predict(combined)  # (B, 20)
 
-            outputs.append(pos_pred)
+            # Update prediction with filter
+            # (B, 20)
+            pos_pred_update = pos_pred_update = torch.sum(
+                self.filter.unsqueeze(0).unsqueeze(-1)
+                * torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1),
+                dim=1,
+            )
+
+            outputs.append(pos_pred_update)
 
             # Update joint context: remove the oldest frame (along the last dimension)
             # and append the new prediction.
