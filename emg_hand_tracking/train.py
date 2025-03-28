@@ -18,7 +18,7 @@ def main(dataset_path: str, checkpoint: str | None = None):
     data_module = DataModule(
         h5_slices=emg2pose_slices(
             dataset_path,
-            train_window=frames_per_window,
+            train_window=12,
             val_window=10,
             step=emg_samples_per_frame * frames_per_window,
         ),
@@ -39,6 +39,8 @@ def main(dataset_path: str, checkpoint: str | None = None):
     trainer = Trainer(
         max_epochs=1000,
         logger=TensorBoardLogger("logs", name="emg_model"),
+        gradient_clip_val=1.0,
+        gradient_clip_algorithm="norm",
     )
 
     trainer.fit(model, datamodule=data_module)

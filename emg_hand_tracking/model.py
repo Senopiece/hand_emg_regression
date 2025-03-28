@@ -135,12 +135,14 @@ class Model(pl.LightningModule):
         landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
         landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
 
-        loss_per_lmk = ((landmarks_pred - landmarks_gt) ** 2).mean(dim=-1)  # (B, S, L)
+        sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
+        loss_per_lmk = sq_delta.mean(dim=-1)  # (B, S, L)
         loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
         loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
         loss = loss_per_sequence.mean()  # scalar
 
         self.log(f"{name}_loss", loss)
+        self.log(f"{name}_lm_err_mm", loss.sqrt())
         return loss
 
     def training_step(self, batch, batch_idx):
@@ -150,7 +152,7 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)
+        return torch.optim.Adam(self.parameters(), lr=1e-5)
 
     def forward(self, x):
         """
