@@ -12,29 +12,26 @@ from .model import Model
 def main(dataset_path: str, checkpoint: str | None = None):
     torch.set_float32_matmul_precision("medium")
 
-    emg_samples_per_frame = 32
-    frames_per_window = 6
+    if checkpoint is not None:
+        print(f"Loading model from checkpoint: {checkpoint}")
+        model = Model.load_from_checkpoint(checkpoint)
+    else:
+        model = Model(
+            emg_samples_per_frame=32,
+            frames_per_window=6,
+            channels=16,
+        )
 
     data_module = DataModule(
         h5_slices=emg2pose_slices(
             dataset_path,
             train_window=12,
             val_window=10,
-            step=emg_samples_per_frame * frames_per_window,
+            step=model.emg_window_length,
         ),
-        emg_samples_per_frame=emg_samples_per_frame,
+        emg_samples_per_frame=model.emg_samples_per_frame,
         batch_size=64,
     )
-
-    if checkpoint is not None:
-        print(f"Loading model from checkpoint: {checkpoint}")
-        model = Model.load_from_checkpoint(checkpoint)
-    else:
-        model = Model(
-            emg_samples_per_frame=emg_samples_per_frame,
-            frames_per_window=frames_per_window,
-            channels=16,
-        )
 
     trainer = Trainer(
         max_epochs=1000,

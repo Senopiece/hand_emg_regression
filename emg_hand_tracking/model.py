@@ -45,10 +45,12 @@ class Model(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
+        self.emg_samples_per_frame = emg_samples_per_frame
         self.frames_per_window = frames_per_window
+        self.channels = channels
         self.hm = load_default_hand_model()
 
-        total_seq_length = emg_samples_per_frame * frames_per_window
+        self.emg_window_length = emg_samples_per_frame * frames_per_window
 
         # T = total_seq_length + S*emg_samples_per_frame
         # C = channels
@@ -61,11 +63,11 @@ class Model(pl.LightningModule):
                 padding=50,
             ),  # -> (B, 1024, T)
             WindowedApply(
-                window_len=total_seq_length,
+                window_len=self.emg_window_length,
                 step=emg_samples_per_frame,
                 f=nn.Sequential(  # <- (B, 1024, total_seq_length)
                     nn.Flatten(),
-                    nn.Linear(1024 * total_seq_length, 1024),
+                    nn.Linear(1024 * self.emg_window_length, 1024),
                     nn.ReLU(),
                     nn.Linear(1024, 512),
                     nn.ReLU(),
