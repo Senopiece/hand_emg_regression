@@ -5,6 +5,8 @@ import pytorch_lightning as pl
 
 from emg2pose.kinematics import HandModel
 
+from .util import WindowedApply
+
 
 def _handmodel2device(hm: HandModel, device):
     if hm.joint_rotation_axes.device == device:
@@ -33,40 +35,111 @@ def _handmodel2device(hm: HandModel, device):
     )
 
 
-class BaseModel(pl.LightningModule):
-    def __init__(self):
+class Model(pl.LightningModule):
+    def __init__(
+        self,
+        emg_samples_per_frame: int,
+        frames_per_window: int,
+        channels: int,
+    ):
         super().__init__()
+        self.save_hyperparameters()
+
+        self.frames_per_window = frames_per_window
         self.hm = load_default_hand_model()
 
+        total_seq_length = emg_samples_per_frame * frames_per_window
+
+        # T = total_seq_length + S*emg_samples_per_frame
+        # C = channels
+
+        self.conv = nn.Sequential(  # <- (B, C, T)
+            nn.Conv1d(
+                in_channels=channels,
+                out_channels=1024,
+                kernel_size=101,
+                padding=50,
+            ),  # -> (B, 1024, T)
+            WindowedApply(
+                window_len=total_seq_length,
+                step=emg_samples_per_frame,
+                f=nn.Sequential(  # <- (B, 1024, total_seq_length)
+                    nn.Flatten(),
+                    nn.Linear(1024 * total_seq_length, 1024),
+                    nn.ReLU(),
+                    nn.Linear(1024, 512),
+                    nn.ReLU(),
+                    nn.Linear(512, 12),
+                ),
+            ),  # -> (B, W, 12), S=W
+        )
+
+        self.frames_features = nn.Sequential(  # <- (B, frames_per_window, 20)
+            nn.Flatten(),
+            nn.Linear(frames_per_window * 20, 80),
+            nn.ReLU(),
+            nn.Linear(80, 20),
+            nn.ReLU(),
+            nn.Linear(20, 12),
+        )
+
+        self.predict = nn.Sequential(  # <- (B, 12+12)
+            nn.Linear(24, 256),
+            nn.ReLU(),
+            nn.Linear(256, 40),
+            nn.ReLU(),
+            nn.Linear(40, 20),
+        )
+
+    def _forward(self, emg, initial_poses):
+        emg = emg.permute(0, 2, 1)  # (B, T, C)
+        windows = self.conv(emg).permute(1, 0, 2)  # (W, B, 12)
+
+        outputs = []
+        for emg_features in windows:
+            joint_features = self.frames_features(initial_poses)  # (B, 12)
+
+            # Concatenate the EMG and joint context features.
+            combined = torch.cat([emg_features, joint_features], dim=1)  # (B, 24)
+            pos_pred = self.predict(combined)  # (B, 20)
+
+            outputs.append(pos_pred)
+
+            # Update joint context: remove the oldest frame (along the last dimension)
+            # and append the new prediction.
+            # maintain initial_poses shape (B, frames_per_window, 20)
+            initial_poses = torch.cat(
+                [initial_poses[:, 1:, :], pos_pred.unsqueeze(1)], dim=1
+            )
+
+        # Stack all predictions along a new time dimension.
+        # Final output shape: (B, S, 20)
+        return torch.stack(outputs, dim=1)
+
     def _step(self, name: str, batch):
-        x, y = batch
+        emg = batch["emg"]
+        poses = batch["poses"]
 
         self.hm = _handmodel2device(self.hm, self.device)
 
-        # Predicted joint angles: shape (B, 20)
-        y_hat = self(x)
+        # (B, S=frames_per_window, 20)
+        initial_poses = poses[:, : self.frames_per_window, :]
 
-        # Convert predicted angles to BCT format: (B, 20, T) with T=1.
-        y_hat_bct = y_hat.unsqueeze(-1)  # shape: (B, 20, 1)
+        # ground truth (B, 20, S=full-frames_per_window)
+        y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
 
-        # Compute 3D landmarks for predictions.
-        # shape: (B, 1, num_landmarks, 3)
-        landmarks_pred = forward_kinematics(y_hat_bct, self.hm)
-        # shape: (B, num_landmarks, 3)
-        landmarks_pred = landmarks_pred.squeeze(1)
+        x = {"emg": emg, "initial_poses": initial_poses}
+        y_hat = self(x).permute(0, 2, 1)  # (B, 20, S=full-frames_per_window)
 
-        # Do the same for ground-truth angles.
-        y_bct = y.unsqueeze(-1)  # (B, 20, 1)
-        landmarks_gt = forward_kinematics(y_bct, self.hm)
-        landmarks_gt = landmarks_gt.squeeze(1)  # shape: (B, num_landmarks, 3)
+        # Compute forward kinematics for predicted and ground truth poses.
+        landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
+        landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
 
-        # Calculate sum of squared errors per sample and divide by number of landmarks.
-        loss_per_sample = torch.mean(
-            torch.sum((landmarks_pred - landmarks_gt) ** 2, dim=2), dim=1
-        )
+        loss_per_lmk = ((landmarks_pred - landmarks_gt) ** 2).mean(dim=-1)  # (B, S, L)
+        loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
+        loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
+        loss = loss_per_sequence.mean()  # scalar
 
-        # Average loss over the batch.
-        loss = loss_per_sample.mean()
         self.log(f"{name}_loss", loss)
         return loss
 
@@ -81,87 +154,8 @@ class BaseModel(pl.LightningModule):
 
     def forward(self, x):
         """
-        x["emg_chunk"]: (B, T, C) where T = emg_samples_per_frame * frames_per_item
-        x["joint_chunk"]: (B, frames_per_item, 20)
+        x["emg"]: (B, T, C) - requires T >= frames_per_window*emg_samples_per_frame and be devisable by emg_samples_per_frame
+        x["initial_poses"]: (B, frames_per_window, 20) - the initial known hand pose
+        returns S = T / emg_samples_per_frame - frames_per_window next predicted joints in shape (B, S, 20)
         """
-        return self._forward(x["emg_chunk"], x["joint_chunk"])
-
-
-class MeanProbeModel(BaseModel):
-    def __init__(
-        self,
-    ):
-        super().__init__()
-        self.save_hyperparameters()
-
-        self.params = nn.Parameter(torch.rand(20))
-
-    def _forward(self, emg, joint_ctx):
-        batch_size = emg.shape[0]
-        return self.params.to(self.device).unsqueeze(0).expand(batch_size, -1)
-
-
-class Model(BaseModel):
-    def __init__(
-        self,
-        emg_samples_per_frame: int,
-        frames_per_item: int,
-        channels: int,
-    ):
-        """
-        Parameters:
-            emg_samples_per_frame: Number of samples per frame.
-            frames_per_item: Number of frames per data item.
-            channels: Number of channels in the EMG signal.
-        """
-        super().__init__()
-        self.save_hyperparameters()
-
-        # Total sequence length (time dimension)
-        total_seq_length = emg_samples_per_frame * frames_per_item
-
-        # Conv1d expects (B, channels, sequence_length)
-        self.emg_squeezer = nn.Sequential(
-            nn.Conv1d(
-                in_channels=channels, out_channels=1024, kernel_size=101, padding=50
-            ),
-            nn.Flatten(),  # Flattens from (B, 1024, total_seq_length) to (B, 1024 * total_seq_length)
-            nn.Linear(1024 * total_seq_length, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 10),
-            nn.ReLU(),
-        )
-
-        self.frames_squeezer = nn.Sequential(
-            nn.Linear(frames_per_item * 20, 40),
-            nn.ReLU(),
-            nn.Linear(40, 20),
-            nn.ReLU(),
-            nn.Linear(20, 10),
-            nn.ReLU(),
-        )
-
-        self.composer = nn.Sequential(
-            nn.Linear(20, 256),
-            nn.ReLU(),
-            nn.Linear(256, 20),
-            nn.ReLU(),
-            nn.Linear(20, 20),
-        )
-
-    def _forward(self, emg, joint_ctx):
-        # Prepare EMG for conv
-        emg = emg.permute(0, 2, 1)  # (B, C, T)
-        emg_features = self.emg_squeezer(emg)  # (B, 10)
-
-        # Flatten joint context and pass through squeezer
-        # (B, frames_per_item * 20)
-        joint_features = joint_ctx.view(joint_ctx.size(0), -1)
-        # (B, 10)
-        joint_features = self.frames_squeezer(joint_features)
-
-        # Combine both and pass through final composer
-        combined = torch.cat([emg_features, joint_features], dim=1)  # (B, 20)
-        output = self.composer(combined)  # (B, 20)
-
-        return output
+        return self._forward(x["emg"], x["initial_poses"])

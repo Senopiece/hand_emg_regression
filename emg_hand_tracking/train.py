@@ -13,12 +13,16 @@ def main(dataset_path: str, checkpoint: str | None = None):
     torch.set_float32_matmul_precision("medium")
 
     emg_samples_per_frame = 32
-    frames_per_item = 6
+    frames_per_window = 6
 
     data_module = DataModule(
-        h5_slices=emg2pose_slices(dataset_path),
+        h5_slices=emg2pose_slices(
+            dataset_path,
+            train_window=frames_per_window,
+            val_window=10,
+            step=emg_samples_per_frame * frames_per_window,
+        ),
         emg_samples_per_frame=emg_samples_per_frame,
-        frames_per_item=frames_per_item,
         batch_size=64,
     )
 
@@ -28,7 +32,7 @@ def main(dataset_path: str, checkpoint: str | None = None):
     else:
         model = Model(
             emg_samples_per_frame=emg_samples_per_frame,
-            frames_per_item=frames_per_item,
+            frames_per_window=frames_per_window,
             channels=16,
         )
 
