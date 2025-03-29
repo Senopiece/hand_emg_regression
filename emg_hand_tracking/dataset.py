@@ -166,7 +166,7 @@ def emg2pose_slices(
             (7, 1000, 49000, step, train_window),
             (7, 50000, 85000, step, train_window),
             (7, 86000, 135706, step, train_window),
-            (8, 0, 133000, step, train_window),
+            # (8, 0, 133000, step, train_window),
             (8, 135000, 148923, step, train_window),
         ],
         "val": [
