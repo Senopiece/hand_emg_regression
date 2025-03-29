@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 
 from emg2pose.kinematics import HandModel
 
-from .util import WindowedApply
+from .modules import WindowedApply
 
 
 def _handmodel2device(hm: HandModel, device):
