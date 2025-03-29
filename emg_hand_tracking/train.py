@@ -43,7 +43,6 @@ def main(dataset_path: str, checkpoint: str | None = None):
                 dirpath="checkpoints",
                 filename="{epoch}-{step}",
                 save_last=True,
-                save_top_k=3,
                 monitor="val_loss",
                 mode="min",
             ),

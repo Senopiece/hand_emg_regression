@@ -1,16 +1,12 @@
 from torch import nn, Tensor
+import torch
 
 
 class WindowedApply(nn.Module):
-    """
-    Applies a function `f` to sliding windows extracted along the last dimension of an input tensor.
-
-    Input: (B, *A, T)
-    Output: (B, W, *F), where W is the number of windows produced
-    """
-
     def __init__(self, window_len: int, step: int, f: nn.Module):
         """
+        Applies a function `f` to sliding windows extracted along the last dimension of an input tensor.
+
         Args:
             window_len (int): Length of each window along the last dimension.
             step (int): Step size (stride) between successive windows.
@@ -23,6 +19,10 @@ class WindowedApply(nn.Module):
         self.f = f
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Input: (B, *A, T)
+        Output: (B, W, *F), where W is the number of windows produced
+        """
         assert x.dim() >= 2
         assert (
             x.shape[-1] >= self.window_len
@@ -56,3 +56,33 @@ class WindowedApply(nn.Module):
 
         # Reshape the output back to (B, W, *F)
         return out.reshape(B, W, *out.shape[1:])
+
+
+class WeightedMean(nn.Module):
+    def __init__(self, len: int):
+        super().__init__()
+        self.k = nn.Parameter(torch.rand(len - 1))
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Args:
+            x (Tensor): Input tensor of shape (B, len, *A), where `len` matches the length of the filter.
+
+        Returns:
+            Tensor: Weighted mean of shape (B, *A).
+        """
+        assert (
+            x.shape[1] == self.k.shape[0] + 1
+        ), "Input length must match filter length."
+
+        # Make weights
+        last_weight = 1 - self.k.sum()
+        weights = torch.cat([self.k, last_weight.unsqueeze(0)], dim=0)
+
+        # Apply weighted mean along the second dimension (len)
+        weighted_mean = torch.sum(
+            x * weights.view(1, -1, *([1] * (x.dim() - 2))),
+            dim=1,
+        )
+
+        return weighted_mean
