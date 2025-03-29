@@ -64,6 +64,11 @@ class WeightedMean(nn.Module):
         self.l = nn.Parameter(torch.tensor(1000.0), requires_grad=False)
         self.k = nn.Parameter(torch.rand(len - 1))
 
+    @property
+    def normalized_weights(self):
+        weights = torch.cat([self.k, self.l.unsqueeze(0)])
+        return weights / weights.sum()
+
     def forward(self, x: Tensor) -> Tensor:
         """
         Args:
@@ -75,15 +80,7 @@ class WeightedMean(nn.Module):
         assert (
             x.shape[1] == self.k.shape[0] + 1
         ), "Input length must match filter length."
-
-        # Make and normalize weights
-        weights = torch.cat([self.k, self.l.unsqueeze(0)])
-        normalized_weights = weights / weights.sum()
-
-        # Apply the filter: weighted mean along the second dimension (len)
-        weighted_mean = torch.sum(
-            x * normalized_weights.view(1, -1, *([1] * (x.dim() - 2))),
+        return torch.sum(
+            x * self.normalized_weights.view(1, -1, *([1] * (x.dim() - 2))),
             dim=1,
         )
-
-        return weighted_mean
