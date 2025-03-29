@@ -3,7 +3,7 @@ import argparse
 from dotenv import load_dotenv
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import WandbLogger
 import torch
 
 from .dataset import DataModule, emg2pose_slices
@@ -35,13 +35,14 @@ def main(dataset_path: str, checkpoint: str | None = None):
     print("Preparing trainer...")
     trainer = Trainer(
         max_epochs=1000,
-        logger=TensorBoardLogger("logs", name="emg_model"),
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
+        logger=WandbLogger(
+            project="emg-hand-regression",
+            log_model="all",
+        ),
         callbacks=[
             ModelCheckpoint(
-                dirpath="checkpoints",
-                filename="{epoch}-{step}",
                 save_last=True,
                 monitor="val_loss",
                 mode="min",
