@@ -2,6 +2,7 @@ import os
 import argparse
 from dotenv import load_dotenv
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 import torch
 
@@ -12,16 +13,14 @@ from .model import Model
 def main(dataset_path: str, checkpoint: str | None = None):
     torch.set_float32_matmul_precision("medium")
 
-    if checkpoint is not None:
-        print(f"Loading model from checkpoint: {checkpoint}")
-        model = Model.load_from_checkpoint(checkpoint)
-    else:
-        model = Model(
-            emg_samples_per_frame=32,
-            frames_per_window=6,
-            channels=16,
-        )
+    print("Loading model...")
+    model = Model(
+        emg_samples_per_frame=32,
+        frames_per_window=6,
+        channels=16,
+    )
 
+    print("Loading dataset...")
     data_module = DataModule(
         h5_slices=emg2pose_slices(
             dataset_path,
@@ -33,14 +32,29 @@ def main(dataset_path: str, checkpoint: str | None = None):
         batch_size=64,
     )
 
+    print("Preparing trainer...")
     trainer = Trainer(
         max_epochs=1000,
         logger=TensorBoardLogger("logs", name="emg_model"),
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
+        callbacks=[
+            ModelCheckpoint(
+                dirpath="checkpoints",
+                filename="{epoch}-{step}",
+                save_last=True,
+                save_top_k=3,
+                monitor="val_loss",
+                mode="min",
+            ),
+        ],
     )
 
-    trainer.fit(model, datamodule=data_module)
+    trainer.fit(
+        model,
+        datamodule=data_module,
+        ckpt_path=checkpoint,
+    )
 
 
 if __name__ == "__main__":
@@ -57,9 +71,10 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint",
+        "-c",
         type=str,
         default=None,
-        help="Path to a checkpoint file to load model weights from",
+        help="Path to a checkpoint file to load model weights from, can be last or hpc",
     )
     args = parser.parse_args()
 
