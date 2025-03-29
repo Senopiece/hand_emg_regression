@@ -33,6 +33,7 @@ class Model(pl.LightningModule):
                 out_channels=1024,
                 kernel_size=101,
                 padding=50,
+                bias=False,
             ),  # -> (B, 1024, T)
             WindowedApply(  # separate windows for calculating multiple predictions
                 window_len=self.emg_window_length,
