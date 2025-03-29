@@ -61,6 +61,7 @@ class WindowedApply(nn.Module):
 class WeightedMean(nn.Module):
     def __init__(self, len: int):
         super().__init__()
+        self.l = nn.Parameter(torch.tensor(1000.0), requires_grad=False)
         self.k = nn.Parameter(torch.rand(len - 1))
 
     def forward(self, x: Tensor) -> Tensor:
@@ -75,13 +76,13 @@ class WeightedMean(nn.Module):
             x.shape[1] == self.k.shape[0] + 1
         ), "Input length must match filter length."
 
-        # Make weights
-        last_weight = 1 - self.k.sum()
-        weights = torch.cat([self.k, last_weight.unsqueeze(0)], dim=0)
+        # Make and normalize weights
+        weights = torch.cat([self.k, self.l.unsqueeze(0)])
+        normalized_weights = weights / weights.sum()
 
-        # Apply weighted mean along the second dimension (len)
+        # Apply the filter: weighted mean along the second dimension (len)
         weighted_mean = torch.sum(
-            x * weights.view(1, -1, *([1] * (x.dim() - 2))),
+            x * normalized_weights.view(1, -1, *([1] * (x.dim() - 2))),
             dim=1,
         )
 
