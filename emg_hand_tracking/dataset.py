@@ -27,12 +27,12 @@ class emg2poseInMemSessionSlice(Dataset):
         frames_per_item: int = 6,
         transform=None,
     ):
-        self.h5_path = Path(h5_path)
+        h5_path = Path(h5_path)
         transform = transform if transform is not None else default_transform
 
         emg_window_size = emg_samples_per_frame * frames_per_item
 
-        with h5py.File(self.h5_path, "r") as f:
+        with h5py.File(h5_path, "r") as f:
             timeseries = f["emg2pose"]["timeseries"]  # type: ignore
             joint_angles = timeseries["joint_angles"]  # type: ignore
             emg = timeseries["emg"]  # type: ignore
@@ -64,7 +64,7 @@ class emg2poseInMemSessionSlice(Dataset):
                 assert count > 0
                 self.items = [load_item(idx) for idx in range(count)]
             except Exception as e:
-                raise Exception(f"Errored in {self.h5_path}") from e
+                raise Exception(f"Errored in {h5_path}") from e
 
     def __len__(self):
         return len(self.items)
