@@ -148,13 +148,14 @@ class V4_outer_window(Model):
         loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
         loss = loss_per_sequence.mean()  # scalar
 
+        self.log(f"{name}_lm_err_mm", loss.sqrt())
+
         # Add L1 regularization
         l1_lambda = 1e-5
         l1_loss = sum(param.abs().sum() for param in self.parameters())
         loss += l1_lambda * l1_loss
 
         self.log(f"{name}_loss", loss)
-        self.log(f"{name}_lm_err_mm", loss.sqrt())
         return loss
 
 
