@@ -34,35 +34,6 @@ class Model(pl.LightningModule):
         """
         return self._forward(x["emg"], x["initial_poses"])
 
-    def _step(self, name: str, batch):
-        emg = batch["emg"]
-        poses = batch["poses"]
-
-        self.hm = handmodel2device(self.hm, self.device)
-
-        # (B, S=frames_per_window, 20)
-        initial_poses = poses[:, : self.frames_per_window, :]
-
-        # ground truth (B, 20, S=full-frames_per_window)
-        y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
-
-        x = {"emg": emg, "initial_poses": initial_poses}
-        y_hat = self(x).permute(0, 2, 1)  # (B, 20, S=full-frames_per_window)
-
-        # Compute forward kinematics for predicted and ground truth poses.
-        landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
-        landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
-
-        sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        loss_per_lmk = sq_delta.mean(dim=-1)  # (B, S, L)
-        loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
-        loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
-        loss = loss_per_sequence.mean()  # scalar
-
-        self.log(f"{name}_loss", loss)
-        self.log(f"{name}_lm_err_mm", loss.sqrt())
-        return loss
-
     def training_step(self, batch, batch_idx):
         return self._step("train", batch)
 
@@ -73,7 +44,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V1(Model):
+class V3(Model):
     def __init__(self):
         super().__init__()
 
@@ -153,30 +124,36 @@ class V1(Model):
         # Final output shape: (B, S, 20)
         return torch.stack(outputs, dim=1)
 
+    def _step(self, name: str, batch):
+        emg = batch["emg"]
+        poses = batch["poses"]
 
-class V2(V1):
-    def __init__(
-        self,
-    ):
-        super().__init__()
+        self.hm = handmodel2device(self.hm, self.device)
 
-        self.conv = nn.Sequential(  # <- (B, C, T)
-            nn.Conv1d(
-                in_channels=self.channels,
-                out_channels=1024,
-                kernel_size=101,
-                padding=50,
-            ),  # -> (B, 1024, T)
-            WindowedApply(  # separate windows for calculating multiple predictions
-                window_len=self.emg_window_length,
-                step=self.emg_samples_per_frame,
-                f=nn.Sequential(  # <- (B, 1024, total_seq_length)
-                    nn.Flatten(),
-                    nn.Linear(1024 * self.emg_window_length, 1024),
-                    nn.ReLU(),
-                    nn.Linear(1024, 512),
-                    nn.ReLU(),
-                    nn.Linear(512, 64),
-                ),
-            ),  # -> (B, W, 64), S=W
-        )
+        # (B, S=frames_per_window, 20)
+        initial_poses = poses[:, : self.frames_per_window, :]
+
+        # ground truth (B, 20, S=full-frames_per_window)
+        y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
+
+        x = {"emg": emg, "initial_poses": initial_poses}
+        y_hat = self(x).permute(0, 2, 1)  # (B, 20, S=full-frames_per_window)
+
+        # Compute forward kinematics for predicted and ground truth poses.
+        landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
+        landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
+
+        sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
+        loss_per_lmk = sq_delta.mean(dim=-1)  # (B, S, L)
+        loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
+        loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
+        loss = loss_per_sequence.mean()  # scalar
+
+        # Add L1 regularization
+        l1_lambda = 1e-5
+        l1_loss = sum(param.abs().sum() for param in self.parameters())
+        loss += l1_lambda * l1_loss
+
+        self.log(f"{name}_loss", loss)
+        self.log(f"{name}_lm_err_mm", loss.sqrt())
+        return loss
