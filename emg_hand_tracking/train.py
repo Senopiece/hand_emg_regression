@@ -1,5 +1,9 @@
 import os
 import argparse
+import signal
+import subprocess
+import sys
+from typing import List
 from dotenv import load_dotenv
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -10,10 +14,12 @@ from .dataset import DataModule, emg2pose_slices
 from .model import Model
 
 
-def main(model_name: str, dataset_path: str, checkpoint: str | None = None):
+def run_single(
+    model_name: str,
+    dataset_path: str,
+    cont: bool,
+):
     torch.set_float32_matmul_precision("medium")
-
-    print("Available models:", ", ".join(Model.impls()))
 
     print(f"Loading model {model_name}...")
     model = Model.construct(model_name)
@@ -27,7 +33,7 @@ def main(model_name: str, dataset_path: str, checkpoint: str | None = None):
             step=model.emg_window_length,
         ),
         emg_samples_per_frame=model.emg_samples_per_frame,
-        batch_size=64,
+        batch_size=16,
     )
 
     print("Preparing trainer...")
@@ -41,8 +47,8 @@ def main(model_name: str, dataset_path: str, checkpoint: str | None = None):
         callbacks=[
             ModelCheckpoint(
                 dirpath="checkpoints",
-                save_top_k=0,
-                save_last=True,
+                filename=model_name,
+                save_top_k=1,
                 monitor="val_loss",
                 mode="min",
             ),
@@ -52,8 +58,83 @@ def main(model_name: str, dataset_path: str, checkpoint: str | None = None):
     trainer.fit(
         model,
         datamodule=data_module,
-        ckpt_path=checkpoint,
+        ckpt_path=f"./checkpoints/{model_name}.ckpt" if cont else None,
     )
+
+
+def run_many(
+    models: List[str],
+    dataset_path: str,
+    cont: bool,
+):
+    processes = []
+
+    def terminate_processes(signum, frame):
+        print("\nTerminating all processes...")
+        for p in processes:
+            p.terminate()
+        for p in processes:
+            p.wait()
+        exit(0)
+
+    signal.signal(signal.SIGINT, terminate_processes)
+
+    for model in models:
+        print(f"Starting process for model: {model}")
+        process = subprocess.Popen(
+            [
+                "python",
+                "-m",
+                "emg_hand_tracking.train",
+                "--model",
+                model,
+                "--dataset_path",
+                dataset_path,
+                *(["-c"] if cont else []),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        processes.append(process)
+
+    try:
+        while processes:
+            for p in processes:
+                output = p.stdout.readline()
+                if output:
+                    print(f"{p.args[4]} | {output.strip()}")
+                if p.poll() is not None:  # Process has ended
+                    processes.remove(p)
+
+                    # Terminate all if any exited with non-zero exit code
+                    if p.returncode != 0:
+                        print(
+                            f"Process for model {p.args[4]} exited with error code {p.returncode}."
+                        )
+                        terminate_processes(None, None)
+    except KeyboardInterrupt:
+        terminate_processes(None, None)
+
+
+def main(
+    model_names: List[str],
+    dataset_path: str,
+    cont: bool,
+):
+    if len(model_names) == 0:
+        print("Empty model names", file=sys.stderr)
+        return 1
+
+    if "all" in model_names:
+        model_names = list(Model.impls())
+
+    if len(model_names) == 1:
+        run_single(model_names[0], dataset_path, cont)
+    else:
+        run_many(model_names, dataset_path, cont)
+
+    return 0
 
 
 if __name__ == "__main__":
@@ -66,8 +147,9 @@ if __name__ == "__main__":
         "--model",
         "-m",
         type=str,
-        required=True,
-        help="Model to train, available: " + ", ".join(Model.impls()),
+        default="all",
+        help="Models to train, separated by comma. Available: all, "
+        + ", ".join(Model.impls()),
     )
     parser.add_argument(
         "--dataset_path",
@@ -77,11 +159,10 @@ if __name__ == "__main__":
         help="Path to the emg2pose directory (can also be set via the DATASET_PATH environment variable)",
     )
     parser.add_argument(
-        "--checkpoint",
+        "--cont",
         "-c",
-        type=str,
-        default=None,
-        help="Path to a checkpoint file to load model weights from, can be last or hpc",
+        action="store_true",
+        help="Continue from the last checkpoint",
     )
     args = parser.parse_args()
 
@@ -90,8 +171,10 @@ if __name__ == "__main__":
             "Please provide a dataset path via the --dataset_path argument or set the DATASET_PATH environment variable."
         )
 
-    main(
-        model_name=args.model,
-        dataset_path=args.dataset_path,
-        checkpoint=args.checkpoint,
+    sys.exit(
+        main(
+            model_names=args.model.split(","),
+            dataset_path=args.dataset_path,
+            cont=args.cont,
+        )
     )
