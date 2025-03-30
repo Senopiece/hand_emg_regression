@@ -10,19 +10,17 @@ from .modules import WindowedApply, WeightedMean
 class Model(pl.LightningModule):
     def __init__(
         self,
-        emg_samples_per_frame: int,
-        frames_per_window: int,
         channels: int,
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        self.emg_samples_per_frame = emg_samples_per_frame
-        self.frames_per_window = frames_per_window
+        self.emg_samples_per_frame = 32
+        self.frames_per_window = 6
         self.channels = channels
         self.hm = load_default_hand_model()
 
-        self.emg_window_length = emg_samples_per_frame * frames_per_window
+        self.emg_window_length = self.emg_samples_per_frame * self.frames_per_window
 
         # T = total_seq_length + S*emg_samples_per_frame
         # C = channels
@@ -37,7 +35,7 @@ class Model(pl.LightningModule):
             ),  # -> (B, 1024, T)
             WindowedApply(  # separate windows for calculating multiple predictions
                 window_len=self.emg_window_length,
-                step=emg_samples_per_frame,
+                step=self.emg_samples_per_frame,
                 f=nn.Sequential(  # <- (B, 1024, total_seq_length)
                     nn.Flatten(),
                     nn.Linear(1024 * self.emg_window_length, 1024),
@@ -50,14 +48,14 @@ class Model(pl.LightningModule):
         )
 
         self.predict = nn.Sequential(
-            nn.Linear(frames_per_window * 20 + 64, 512),
+            nn.Linear(self.frames_per_window * 20 + 64, 512),
             nn.ReLU(),
             nn.Linear(512, 512),
             nn.ReLU(),
             nn.Linear(512, 20),
         )
 
-        self.filter = WeightedMean(frames_per_window + 1)
+        self.filter = WeightedMean(self.frames_per_window + 1)
 
     def _forward(self, emg, initial_poses):
         emg = emg.permute(0, 2, 1)  # (B, T, C)

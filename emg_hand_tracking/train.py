@@ -15,8 +15,6 @@ def main(dataset_path: str, checkpoint: str | None = None):
 
     print("Loading model...")
     model = Model(
-        emg_samples_per_frame=32,
-        frames_per_window=6,
         channels=16,
     )
 
