@@ -7,6 +7,8 @@ from torch.utils.data import DataLoader, ConcatDataset
 from pathlib import Path
 from typing import Mapping, Sequence, Tuple
 
+import warnings
+
 
 def default_transform(d):
     return {
@@ -82,15 +84,25 @@ class DataModule(LightningDataModule):
         ],  # train | val : (path, start, end, step, frames_per_item)
         emg_samples_per_frame: int = 32,
         batch_size: int = 64,
-        num_workers: int = 16,
         transform=None,
     ):
         super().__init__()
         self.h5_slices = h5_slices
         self.emg_samples_per_frame = emg_samples_per_frame
         self.batch_size = batch_size
-        self.num_workers = num_workers
         self.transform = transform
+
+        # Having multiple workers will actually decrease the performance
+        warnings.filterwarnings(
+            "ignore",
+            message="The 'train_dataloader' does not have many workers which may be a bottleneck.*",
+            category=UserWarning,
+        )
+        warnings.filterwarnings(
+            "ignore",
+            message="The 'val_dataloader' does not have many workers which may be a bottleneck.*",
+            category=UserWarning,
+        )
 
     def setup(self, stage=None):
         self.train_dataset, self.val_dataset = [
@@ -116,9 +128,7 @@ class DataModule(LightningDataModule):
             self.train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=self.num_workers,
-            persistent_workers=True,
-            pin_memory=True,
+            num_workers=0,
         )
 
     def val_dataloader(self):
@@ -126,9 +136,7 @@ class DataModule(LightningDataModule):
             self.val_dataset,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=self.num_workers,
-            persistent_workers=True,
-            pin_memory=True,
+            num_workers=0,
         )
 
     def test_dataloader(self):
