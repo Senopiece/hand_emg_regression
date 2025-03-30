@@ -181,13 +181,13 @@ class V5_conv2d(Model):
                 Unsqueeze(1),  # -> (B, 1, C, window_len)
                 nn.Conv2d(
                     in_channels=1,
-                    out_channels=256,
+                    out_channels=128,
                     kernel_size=(1, 101),
                     padding=(0, 50),
                     bias=False,
                 ),  # -> (B, 1024, C, window_len)
                 nn.Flatten(),
-                nn.Linear(256 * self.channels * self.emg_window_length, 1024),
+                nn.Linear(128 * self.channels * self.emg_window_length, 1024),
                 nn.ReLU(),
                 nn.Linear(1024, 512),
                 nn.ReLU(),
