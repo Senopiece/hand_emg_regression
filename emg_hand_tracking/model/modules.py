@@ -61,7 +61,7 @@ class WindowedApply(nn.Module):
 class WeightedMean(nn.Module):
     def __init__(self, len: int):
         super().__init__()
-        self.l = nn.Parameter(torch.tensor(1000.0), requires_grad=False)
+        self.l = nn.Parameter(torch.tensor(1.0), requires_grad=False)
         self.k = nn.Parameter(torch.rand(len - 1))
 
     @property
