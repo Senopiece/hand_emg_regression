@@ -4,6 +4,7 @@ import torch
 
 class Unsqueeze(nn.Module):
     def __init__(self, i):
+        super().__init__()
         self.i = i
 
     def forward(self, x):
