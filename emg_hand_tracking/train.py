@@ -43,6 +43,7 @@ def run_single(
         gradient_clip_algorithm="norm",
         logger=WandbLogger(
             project="emg-hand-regression",
+            version=model_name,
         ),
         callbacks=[
             ModelCheckpoint(
