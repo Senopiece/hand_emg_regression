@@ -44,7 +44,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V3(Model):
+class V4_outer_window(Model):
     def __init__(self):
         super().__init__()
 
@@ -59,27 +59,26 @@ class V3(Model):
         # T = total_seq_length + S*emg_samples_per_frame
         # C = channels
 
-        self.conv = nn.Sequential(  # <- (B, C, T)
-            nn.Conv1d(
-                in_channels=self.channels,
-                out_channels=1024,
-                kernel_size=101,
-                padding=50,
-                bias=False,
-            ),  # -> (B, 1024, T)
-            WindowedApply(  # separate windows for calculating multiple predictions
-                window_len=self.emg_window_length,
-                step=self.emg_samples_per_frame,
-                f=nn.Sequential(  # <- (B, 1024, total_seq_length)
-                    nn.Flatten(),
-                    nn.Linear(1024 * self.emg_window_length, 1024),
-                    nn.ReLU(),
-                    nn.Linear(1024, 512),
-                    nn.ReLU(),
-                    nn.Linear(512, 64),
-                ),
-            ),  # -> (B, W, 64), S=W
-        )
+        # separate windows per prediction if feed a sequence for more than one prediction
+        self.conv = WindowedApply(  # <- (B, C, T)
+            window_len=self.emg_window_length,
+            step=self.emg_samples_per_frame,
+            f=nn.Sequential(  # <- (B, C, total_seq_length)
+                nn.Conv1d(
+                    in_channels=self.channels,
+                    out_channels=1024,
+                    kernel_size=101,
+                    padding=50,
+                    bias=False,
+                ),  # -> (B, 1024, total_seq_length)
+                nn.Flatten(),
+                nn.Linear(1024 * self.emg_window_length, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 512),
+                nn.ReLU(),
+                nn.Linear(512, 64),
+            ),
+        )  # -> (B, W, 64), S=W
 
         self.predict = nn.Sequential(
             nn.Linear(self.frames_per_window * 20 + 64, 512),
