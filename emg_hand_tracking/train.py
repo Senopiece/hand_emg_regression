@@ -51,6 +51,7 @@ def run_single(
                 save_top_k=1,
                 monitor="val_loss",
                 mode="min",
+                enable_version_counter=False,
             ),
         ],
     )
