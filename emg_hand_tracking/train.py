@@ -10,13 +10,13 @@ from .dataset import DataModule, emg2pose_slices
 from .model import Model
 
 
-def main(dataset_path: str, checkpoint: str | None = None):
+def main(model_name: str, dataset_path: str, checkpoint: str | None = None):
     torch.set_float32_matmul_precision("medium")
 
-    print("Loading model...")
-    model = Model(
-        channels=16,
-    )
+    print("Available models:", ", ".join(Model.impls()))
+
+    print(f"Loading model {model_name}...")
+    model = Model.construct(model_name)
 
     print("Loading dataset...")
     data_module = DataModule(
@@ -63,7 +63,15 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train EMG-to-Pose model")
     parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        required=True,
+        help="Model to train, available: " + ", ".join(Model.impls()),
+    )
+    parser.add_argument(
         "--dataset_path",
+        "-d",
         type=str,
         default=env_dataset_path,
         help="Path to the emg2pose directory (can also be set via the DATASET_PATH environment variable)",
@@ -82,4 +90,8 @@ if __name__ == "__main__":
             "Please provide a dataset path via the --dataset_path argument or set the DATASET_PATH environment variable."
         )
 
-    main(dataset_path=args.dataset_path, checkpoint=args.checkpoint)
+    main(
+        model_name=args.model,
+        dataset_path=args.dataset_path,
+        checkpoint=args.checkpoint,
+    )
