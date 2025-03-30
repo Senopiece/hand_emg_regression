@@ -9,6 +9,18 @@ from typing import Mapping, Sequence, Tuple
 
 import warnings
 
+# Having multiple workers will actually decrease the performance
+warnings.filterwarnings(
+    "ignore",
+    message="The 'train_dataloader' does not have many workers which may be a bottleneck.*",
+    category=UserWarning,
+)
+warnings.filterwarnings(
+    "ignore",
+    message="The 'val_dataloader' does not have many workers which may be a bottleneck.*",
+    category=UserWarning,
+)
+
 
 def default_transform(d):
     return {
@@ -91,18 +103,6 @@ class DataModule(LightningDataModule):
         self.emg_samples_per_frame = emg_samples_per_frame
         self.batch_size = batch_size
         self.transform = transform
-
-        # Having multiple workers will actually decrease the performance
-        warnings.filterwarnings(
-            "ignore",
-            message="The 'train_dataloader' does not have many workers which may be a bottleneck.*",
-            category=UserWarning,
-        )
-        warnings.filterwarnings(
-            "ignore",
-            message="The 'val_dataloader' does not have many workers which may be a bottleneck.*",
-            category=UserWarning,
-        )
 
     def setup(self, stage=None):
         self.train_dataset, self.val_dataset = [
