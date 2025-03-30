@@ -161,6 +161,19 @@ class V4_outer_window(Model):
 class V5_conv2d(Model):
     def __init__(self):
         super().__init__()
+
+        self.channels = 16
+        self.emg_samples_per_frame = 32
+        self.frames_per_window = 6
+
+        self.hm = load_default_hand_model()
+
+        self.emg_window_length = self.emg_samples_per_frame * self.frames_per_window
+
+        # T = total_seq_length + S*emg_samples_per_frame
+        # C = channels
+
+        # separate windows per prediction if feed a sequence for more than one prediction
         self.conv = WindowedApply(  # <- (B, C, T)
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
