@@ -5,7 +5,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 
 from .util import handmodel2device
-from .modules import WindowedApply, WeightedMean
+from .modules import Unsqueeze, WindowedApply, WeightedMean
 
 
 class Model(pl.LightningModule):
@@ -156,3 +156,28 @@ class V4_outer_window(Model):
         self.log(f"{name}_loss", loss)
         self.log(f"{name}_lm_err_mm", loss.sqrt())
         return loss
+
+
+class V5_conv2d(V4_outer_window):
+    def __init__(self):
+        super().__init__()
+        self.conv = WindowedApply(  # <- (B, C, T)
+            window_len=self.emg_window_length,
+            step=self.emg_samples_per_frame,
+            f=nn.Sequential(  # <- (B, C, total_seq_length)
+                Unsqueeze(1),  # -> (B, 1, C, window_len)
+                nn.Conv2d(
+                    in_channels=1,
+                    out_channels=1024,
+                    kernel_size=(1, 101),
+                    padding=(0, 50),
+                    bias=False,
+                ),  # -> (B, 1024, C, window_len)
+                nn.Flatten(),
+                nn.Linear(1024 * self.channels * self.emg_window_length, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 512),
+                nn.ReLU(),
+                nn.Linear(512, 64),
+            ),
+        )  # -> (B, W, 64), S=W

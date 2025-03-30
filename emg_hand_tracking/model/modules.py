@@ -2,6 +2,14 @@ from torch import nn, Tensor
 import torch
 
 
+class Unsqueeze(nn.Module):
+    def __init__(self, i):
+        self.i = i
+
+    def forward(self, x):
+        return x.unsqueeze(self.i)
+
+
 class WindowedApply(nn.Module):
     def __init__(self, window_len: int, step: int, f: nn.Module):
         """
