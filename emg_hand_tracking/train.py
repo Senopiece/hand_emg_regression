@@ -39,10 +39,11 @@ def main(dataset_path: str, checkpoint: str | None = None):
         gradient_clip_algorithm="norm",
         logger=WandbLogger(
             project="emg-hand-regression",
-            log_model="all",
         ),
         callbacks=[
             ModelCheckpoint(
+                dirpath="checkpoints",
+                save_top_k=0,
                 save_last=True,
                 monitor="val_loss",
                 mode="min",
