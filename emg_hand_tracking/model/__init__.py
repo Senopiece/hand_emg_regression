@@ -161,7 +161,7 @@ class _Basis(Model):
         return loss
 
 
-class DynamicSlice10_v1(_Basis):
+class DynamicSlice11_v1(_Basis):
     def __init__(self) -> None:
         super().__init__(
             slices=16,
@@ -170,7 +170,7 @@ class DynamicSlice10_v1(_Basis):
         )
 
 
-class DynamicSlice10_v2(_Basis):
+class DynamicSlice11_v2(_Basis):
     def __init__(self) -> None:
         super().__init__(
             slices=16,
@@ -179,7 +179,7 @@ class DynamicSlice10_v2(_Basis):
         )
 
 
-class DynamicSlice10_v3(_Basis):
+class DynamicSlice11_v3(_Basis):
     def __init__(self) -> None:
         super().__init__(
             slices=8,

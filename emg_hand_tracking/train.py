@@ -41,6 +41,7 @@ def run_single(
         max_epochs=10000,
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
+        enable_progress_bar=False,
         logger=WandbLogger(
             project="emg-hand-regression",
             version=model_name,
