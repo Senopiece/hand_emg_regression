@@ -49,7 +49,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class DynamicSlice9(Model):
+class DynamicSlice9_min2(Model):
     def __init__(self):
         super().__init__()
 
@@ -64,30 +64,28 @@ class DynamicSlice9(Model):
         # T = total_seq_length + S*emg_samples_per_frame
         # C = channels
 
-        slices = 128
-        patterns = 128
+        slices = 32
+        patterns = 32
 
         # separate windows per prediction if feed a sequence for more than one prediction
         self.conv = WindowedApply(  # <- (B, C, T)
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
             f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.ZeroPad1d(50),  # happens to be not needed, mb remove later
-                ExtractLearnableSlices(n=slices, width=101),  # -> (B, slices, 100)
-                LearnablePatternSimilarity(n=patterns, width=101),  # -> (B, slices, 62)
+                nn.ZeroPad1d(30),  # happens to be not needed, mb remove later
+                ExtractLearnableSlices(n=slices, width=65),  # -> (B, slices, 100)
+                LearnablePatternSimilarity(n=patterns, width=65),  # -> (B, slices, 62)
                 nn.Flatten(),
-                nn.Linear(slices * patterns, 1024),
+                nn.Linear(slices * patterns, 512),
                 nn.ReLU(),
-                nn.Linear(1024, 512),
+                nn.Linear(512, 128),
                 nn.ReLU(),
-                nn.Linear(512, 64),
+                nn.Linear(128, 64),
             ),
         )  # -> (B, W, 64), S=W
 
         self.predict = nn.Sequential(
             nn.Linear(self.frames_per_window * 20 + 64, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
             nn.ReLU(),
             nn.Linear(512, 20),
         )
