@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 from .util import handmodel2device
 from .modules import (
     ExtractLearnableSlices,
+    ExtractLearnableSlices2,
     LearnablePatternSimilarity,
     Unsqueeze,
     WindowedApply,
@@ -50,7 +51,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class DynamicSlice_fixpad(Model):
+class DynamicSlice4(Model):
     def __init__(self):
         super().__init__()
 
@@ -73,7 +74,7 @@ class DynamicSlice_fixpad(Model):
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
             f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.ZeroPad1d(50),
+                nn.ZeroPad1d(50),  # happens to be not needed, mb remove later
                 ExtractLearnableSlices(n=slices, width=101),  # -> (B, slices, 100)
                 LearnablePatternSimilarity(n=patterns, width=101),  # -> (B, slices, 62)
                 nn.Flatten(),

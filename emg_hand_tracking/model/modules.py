@@ -3,27 +3,6 @@ from torch import nn, Tensor
 import torch
 
 
-def make_spike_weights(p, num_slices, alpha=1.0, gamma=10.0):
-    """
-    Create strictly positive, differentiable, and sharper logits for each possible slice
-    based on a continuous parameter.
-
-    Args:
-        p (Tensor): A scalar tensor in [0, 1] representing the normalized starting position.
-        num_slices (int): The number of possible slices.
-        alpha (float): Steepness factor.
-        gamma (float): Exponent factor to sharpen the spike (gamma > 1).
-
-    Returns:
-        Tensor: Logits of shape (num_slices,) that are >0 and have a sharper spike at the index closest to p*(num_slices-1).
-    """
-    p_scaled = p * (
-        num_slices - 1
-    )  # Scale the normalized position to the index range [0, num_slices - 1]
-    indices = torch.arange(num_slices, device=p.device, dtype=p.dtype)
-    return alpha * (((num_slices - 1) - torch.abs(indices - p_scaled)) ** gamma)
-
-
 class Unsqueeze(nn.Module):
     def __init__(self, i):
         super().__init__()
@@ -117,240 +96,7 @@ class WeightedMean(nn.Module):
         )
 
 
-# class LearnablePatternSimilarity(nn.Module):
-#     def __init__(self, input_len: int, eps=1e-8):
-#         super().__init__()
-#         self.l = nn.Parameter(torch.tensor(1.0), requires_grad=False)
-#         self.k = nn.Parameter(torch.rand(input_len - 1))
-#         self.eps = nn.Parameter(torch.tensor(eps), requires_grad=False)
-
-#     @property
-#     def pattern(self):
-#         return torch.cat([self.k, self.l.unsqueeze(0)])
-
-#     def forward(self, x: torch.Tensor) -> torch.Tensor:
-#         """
-#         x: shape (B, N), where B = batch size, N = input length
-#         returns: shape (B,), correlation
-#         """
-#         y = self.pattern  # shape: (N,)
-#         assert x.shape[1] == y.shape[0], "Input length must match pattern length"
-
-#         x_mean = x.mean(dim=1, keepdim=True)
-#         y_mean = y.mean()
-
-#         x_centered = x - x_mean  # shape: (B, N)
-#         y_centered = y - y_mean  # shape: (N,)
-
-#         numerator = (x_centered * y_centered).sum(dim=1)  # shape: (B,)
-#         x_norm = x_centered.norm(dim=1)  # shape: (B,)
-#         y_norm = y_centered.norm()  # scalar
-
-#         denominator = x_norm * y_norm + self.eps  # shape: (B,)
-#         corr = numerator / denominator  # shape: (B,)
-
-#         return corr
-
-# class LearnableSlice(nn.Module):
-#     def __init__(self, window_len: int, sigma: float = 1.0):
-#         """
-#         Extracts a differentiable window slice from an input tensor along the second dimension.
-
-#         Args:
-#             window_len (int): Length of the window to extract along the time dimension.
-#             sigma (float): Standard deviation for the Gaussian used in soft window extraction.
-#                            Lower values yield a window closer to a hard slice.
-#         """
-#         super().__init__()
-#         self.window_len = window_len
-#         self.sigma = sigma
-#         self.start_idx = nn.Parameter(torch.rand())
-
-#     def forward(self, x: torch.Tensor) -> torch.Tensor:
-#         """
-#         Args:
-#             x (Tensor): Input tensor of shape (B, input_len, *A).
-
-#         Returns:
-#             Tensor: Soft-selected slice of shape (B, window_len, *A).
-#         """
-#         # Create a tensor of indices for the time dimension.
-#         t = torch.arange(x.shape[1], device=x.device).float()  # shape: (input_len,)
-
-#         # For each window index j (0 <= j < window_len), the desired input index is start_idx + j.
-#         j = torch.arange(
-#             self.window_len, device=x.device
-#         ).float()  # shape: (window_len,)
-#         desired_positions = self.start_idx + j  # shape: (window_len,)
-
-#         # Compute Gaussian weights for each window index over all input positions.
-#         # W will have shape (window_len, input_len)
-#         W = torch.exp(
-#             -((t.unsqueeze(0) - desired_positions.unsqueeze(1)) ** 2)
-#             / (2 * self.sigma**2)
-#         )
-#         W = W / (W.sum(dim=1, keepdim=True) + 1e-8)
-
-#         # Compute weighted sum along the time dimension.
-#         # x has shape (B, input_len, *A) and W.t() has shape (input_len, window_len).
-#         # The tensordot contracts over the time dimension (dim 1 of x).
-#         y = torch.tensordot(x, W.t(), dims=([1], [0]))  # type: ignore
-#         # y has shape (B, *A, window_len)
-
-#         # Permute y so that the window_len dimension is the second dimension:
-#         # Desired output shape: (B, window_len, *A)
-#         return y.permute(0, y.dim() - 1, *range(1, y.dim() - 1))
-
-# class LearnableSlice(nn.Module):
-#     def __init__(self, output_len: int, temperature: float = 1e-3):
-#         """
-#         Args:
-#             output_len (int): The desired length of the output slice.
-#             temperature (float): Temperature for the softmax. A small value makes the softmax near one-hot.
-#         """
-#         super().__init__()
-#         self.output_len = output_len
-#         self.temperature = temperature
-
-#         self.s = nn.Parameter(torch.rand())
-
-#     def forward(self, x: torch.Tensor) -> torch.Tensor:
-#         """
-#         Args:
-#             x (Tensor): Input tensor of shape (B, input_len, *A).
-
-#         Returns:
-#             Tensor: Selected slice (B, output_len, *A), computed as a weighted sum over all possible slices.
-#         """
-#         num_slices = x.shape[1] - self.output_len + 1
-#         logits = make_spike_weights(F.sigmoid(self.s), num_slices)
-
-#         # Compute softmax weights with a small temperature to encourage near one-hot behavior.
-#         weights = F.softmax(logits / self.temperature, dim=0)  # Shape: (num_slices,)
-
-#         # Generate all possible slices from the input tensor.
-#         # Each slice is taken along the second dimension.
-#         slices = [x[:, i : i + self.output_len, ...] for i in range(num_slices)]
-#         # Stack the slices to get a tensor of shape (num_slices, B, output_len, *A)
-#         slices_stacked = torch.stack(slices, dim=0)
-
-#         # Reshape weights for broadcasting:
-#         # Create a shape like (num_slices, 1, 1, ..., 1) with as many 1's as needed.
-#         weight_shape = [num_slices] + [1] * (slices_stacked.dim() - 1)
-#         weights = weights.view(*weight_shape)
-
-#         # Multiply each slice by its corresponding weight and sum over all slices.
-#         # The resulting tensor has shape (B, output_len, *A)
-#         return (weights * slices_stacked).sum(dim=0)
-
-
-# class LearnableSlice2(nn.Module):
-#     def __init__(self, output_len: int):
-#         """
-#         Args:
-#             output_len (int): The desired length of the output slice.
-#         """
-#         super().__init__()
-#         self.output_len = output_len
-#         self.s = nn.Parameter(torch.rand())
-
-#     def forward(self, x: torch.Tensor) -> torch.Tensor:
-#         """
-#         Args:
-#             x (Tensor): Input tensor of shape (B, input_len, *A).
-
-#         Returns:
-#             Tensor: Interpolated slice of shape (B, output_len, *A).
-#         """
-#         B = x.shape[0]
-#         # Map the scalar s to a valid starting index in [0, input_len - output_len]
-#         start = torch.sigmoid(self.s) * (x.shape[1] - self.output_len)
-
-#         # Create continuous positions for the output slice:
-#         # positions = start, start + 1, ..., start + output_len - 1
-#         pos = start + torch.arange(self.output_len, device=x.device, dtype=x.dtype)
-
-#         # For each continuous position, compute the floor and ceil indices
-#         pos_floor = torch.floor(pos).long()
-#         pos_ceil = pos_floor + 1
-#         # The interpolation weight is the fractional part
-#         w = pos - pos_floor.float()
-
-#         # Clamp pos_ceil to ensure it does not exceed valid index range
-#         pos_ceil = pos_ceil.clamp(max=x.shape[1] - 1)
-
-#         # Expand indices to match the batch dimension
-#         pos_floor = pos_floor.unsqueeze(0).expand(B, -1)
-#         pos_ceil = pos_ceil.unsqueeze(0).expand(B, -1)
-
-#         # Create a batch index for advanced indexing
-#         batch_idx = (
-#             torch.arange(B, device=x.device).unsqueeze(1).expand(B, self.output_len)
-#         )
-
-#         # Gather values from x at floor and ceil indices along the slicing dimension (dim=1)
-#         x_floor = x[batch_idx, pos_floor]  # shape: (B, output_len, *A)
-#         x_ceil = x[batch_idx, pos_ceil]  # shape: (B, output_len, *A)
-
-#         # Reshape the weights to broadcast correctly over additional dimensions
-#         w = w.view(1, self.output_len, *([1] * (x.dim() - 2)))
-
-#         # Perform linear interpolation
-#         return (1 - w) * x_floor + w * x_ceil
-
-
-class LearnableSlice3(nn.Module):
-    def __init__(self, window_len: int, sigma: float = 1.0):
-        """
-        Extracts a differentiable window slice from an input tensor along the second dimension.
-
-        Args:
-            window_len (int): Length of the window to extract along the time dimension.
-            sigma (float): Standard deviation for the Gaussian used in soft window extraction.
-                           Lower values yield a window closer to a hard slice.
-        """
-        super().__init__()
-        self.window_len = window_len
-        self.sigma = sigma
-        self.start_idx = nn.Parameter(torch.rand())
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x (Tensor): Input tensor of shape (B, input_len, *A).
-
-        Returns:
-            Tensor: Soft-selected slice of shape (B, window_len, *A).
-        """
-        # Create a tensor of indices for the time dimension.
-        t = torch.arange(x.shape[1], device=x.device).float()  # shape: (input_len,)
-
-        # For each window index j (0 <= j < window_len), the desired input index is start_idx + j.
-        j = torch.arange(
-            self.window_len, device=x.device
-        ).float()  # shape: (window_len,)
-        desired_positions = self.start_idx + j  # shape: (window_len,)
-
-        # Compute Gaussian weights for each window index over all input positions.
-        # W will have shape (window_len, input_len)
-        W = torch.exp(
-            -((t.unsqueeze(0) - desired_positions.unsqueeze(1)) ** 2)
-            / (2 * self.sigma**2)
-        )
-        W = W / (W.sum(dim=1, keepdim=True) + 1e-8)
-
-        # Compute weighted sum along the time dimension.
-        # x has shape (B, input_len, *A) and W.t() has shape (input_len, window_len).
-        # The tensordot contracts over the time dimension (dim 1 of x).
-        y = torch.tensordot(x, W.t(), dims=([1], [0]))  # type: ignore
-        # y has shape (B, *A, window_len)
-
-        # Permute y so that the window_len dimension is the second dimension:
-        # Desired output shape: (B, window_len, *A)
-        return y.permute(0, y.dim() - 1, *range(1, y.dim() - 1))
-
-
-class ExtractLearnableSlices(nn.Module):
+class ExtractLearnableSlices2(nn.Module):
     def __init__(
         self, n: int, width: int, sigma_time: float = 1.0, sigma_channel: float = 0.1
     ):
@@ -493,3 +239,92 @@ class LearnablePatternSimilarity(nn.Module):
         # Reshape back to (B, *A, n)
         out_shape = orig_shape + (patterns.shape[0],)
         return corr.reshape(out_shape)
+
+
+class ExtractLearnableSlices(nn.Module):
+    def __init__(self, n: int, width: int):
+        """
+        Extracts n learnable slices from an input tensor using linear interpolation.
+        Each slice is defined by two learnable parameters:
+          - channel parameter (in [0, 1]): selects a continuous channel index.
+          - offset parameter (in [0, 1]): selects a continuous starting time index.
+
+        The input tensor is expected to have shape (B, C, input_len) and the output
+        will have shape (B, n, width).
+
+        Args:
+            n (int): Number of slices to extract.
+            width (int): Length of the time window to extract for each slice.
+        """
+        super().__init__()
+        self.n = n
+        self.width = width
+        # Learnable parameters for each slice.
+        self.channel_params = nn.Parameter(torch.rand(n))
+        self.offset_params = nn.Parameter(torch.rand(n))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x (Tensor): Input tensor of shape (B, C, input_len).
+
+        Returns:
+            Tensor: Output tensor of shape (B, n, width) where each slice is
+                    extracted via linear interpolation over both channels and time.
+        """
+        B, C, L = x.shape  # Batch, Channels, Time
+
+        # ----- Linear Interpolation Along Channels -----
+        # Map each channel parameter (in [0,1]) to a continuous channel index in [0, C-1].
+        desired_channels = torch.sigmoid(self.channel_params) * (C - 1)  # shape: (n,)
+        # Compute floor and ceil indices for channel interpolation.
+        floor_channels = torch.floor(desired_channels).long()  # (n,)
+        ceil_channels = (floor_channels + 1).clamp(max=C - 1)  # (n,)
+        # Fractional weight for interpolation.
+        w_channel = desired_channels - floor_channels.float()  # (n,)
+
+        # Expand indices for batched gather.
+        # We want to gather along the channel dimension (dim=1) from x (shape: (B, C, L)).
+        floor_indices = floor_channels.view(1, -1, 1).expand(B, -1, L)  # (B, n, L)
+        ceil_indices = ceil_channels.view(1, -1, 1).expand(B, -1, L)  # (B, n, L)
+
+        # Gather values for floor and ceil channels.
+        x_floor_channel = torch.gather(x, dim=1, index=floor_indices)  # (B, n, L)
+        x_ceil_channel = torch.gather(x, dim=1, index=ceil_indices)  # (B, n, L)
+
+        # Interpolate along the channel dimension.
+        w_channel = w_channel.view(1, -1, 1)  # reshape to (1, n, 1) for broadcasting
+        x_channel = (
+            1 - w_channel
+        ) * x_floor_channel + w_channel * x_ceil_channel  # (B, n, L)
+
+        # ----- Linear Interpolation Along Time -----
+        # Map each offset parameter (in [0,1]) to a continuous starting time index in [0, L - width].
+        t0 = torch.sigmoid(self.offset_params) * (L - self.width)  # shape: (n,)
+        # Create the desired continuous positions for the output time window.
+        j = torch.arange(self.width, device=x.device, dtype=x.dtype)  # (width,)
+        pos = t0.unsqueeze(1) + j.unsqueeze(0)  # (n, width)
+
+        # Compute floor and ceil indices for time interpolation.
+        pos_floor = torch.floor(pos).long()  # (n, width)
+        pos_ceil = (pos_floor + 1).clamp(max=L - 1)  # (n, width)
+        # Fractional weights for time interpolation.
+        w_time = pos - pos_floor.float()  # (n, width)
+
+        # Expand indices to gather along the time dimension from x_channel (shape: (B, n, L)).
+        pos_floor_exp = pos_floor.unsqueeze(0).expand(B, -1, -1)  # (B, n, width)
+        pos_ceil_exp = pos_ceil.unsqueeze(0).expand(B, -1, -1)  # (B, n, width)
+
+        # Gather values for floor and ceil time indices.
+        x_floor_time = torch.gather(
+            x_channel, dim=2, index=pos_floor_exp
+        )  # (B, n, width)
+        x_ceil_time = torch.gather(
+            x_channel, dim=2, index=pos_ceil_exp
+        )  # (B, n, width)
+
+        # Interpolate along the time dimension.
+        w_time = w_time.unsqueeze(0)  # reshape to (1, n, width) for broadcasting
+        out = (1 - w_time) * x_floor_time + w_time * x_ceil_time  # (B, n, width)
+
+        return out
