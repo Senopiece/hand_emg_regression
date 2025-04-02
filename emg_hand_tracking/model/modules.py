@@ -160,6 +160,170 @@ class LearnablePatternSimilarity(nn.Module):
         return corr.reshape(out_shape)
 
 
+class LearnablePatternUnnormSimilarity(nn.Module):
+    def __init__(self, n: int, width: int):
+        """
+        Computes similarity (via centered dot) between the input and n learnable patterns.
+
+        Args:
+            n (int): Number of learnable patterns.
+            width (int): Length of each pattern.
+            eps (float): Small constant for numerical stability.
+        """
+        super().__init__()
+        # For each pattern, create a learnable vector of length (width - 1) and a fixed scalar.
+        self.k = nn.Parameter(torch.rand(n, width - 1))
+        self.l = nn.Parameter(torch.ones(n, 1), requires_grad=False)
+
+    @property
+    def patterns(self) -> torch.Tensor:
+        """
+        Returns:
+            Tensor: Learnable patterns of shape (n, width).
+        """
+        return torch.cat([self.k, self.l], dim=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Computes the correlation similarity between the input and each learnable pattern.
+
+        Args:
+            x (Tensor): Input tensor of shape (B, *A, width).
+
+        Returns:
+            Tensor: Similarity scores of shape (B, *A, n), one for each pattern.
+        """
+        # Get patterns: shape (n, width)
+        patterns = self.patterns
+        # Compute mean and center patterns along the width dimension.
+        p_mean = patterns.mean(dim=-1, keepdim=True)  # (n, 1)
+        p_centered = patterns - p_mean  # (n, width)
+
+        # Center the input along its last dimension (width)
+        x_mean = x.mean(dim=-1, keepdim=True)
+        x_centered = x - x_mean  # (B, *A, width)
+
+        # Reshape x_centered to (N, width) where N = product of batch and other dims.
+        orig_shape = x.shape[:-1]  # (B, *A)
+        num_vectors = x.numel() // x.shape[-1]
+        x_flat = x_centered.reshape(num_vectors, x.shape[-1])  # (N, width)
+
+        # Compute dot product between each input vector and each pattern.
+        # p_centered is (n, width), so its transpose is (width, n).
+        dot = torch.matmul(x_flat, p_centered.T)  # (N, n)
+
+        # Reshape back to (B, *A, n)
+        out_shape = orig_shape + (patterns.shape[0],)
+        return dot.reshape(out_shape)
+
+
+class LearnablePatternCosSimilarity(nn.Module):
+    def __init__(self, n: int, width: int, eps: float = 1e-8):
+        """
+        Computes cos similarity between the input and n learnable patterns.
+
+        Args:
+            n (int): Number of learnable patterns.
+            width (int): Length of each pattern.
+            eps (float): Small constant for numerical stability.
+        """
+        super().__init__()
+        self.eps = eps
+        # For each pattern, create a learnable vector of length (width - 1) and a fixed scalar.
+        self.k = nn.Parameter(torch.rand(n, width - 1))
+        self.l = nn.Parameter(torch.ones(n, 1), requires_grad=False)
+
+    @property
+    def patterns(self) -> torch.Tensor:
+        """
+        Returns:
+            Tensor: Learnable patterns of shape (n, width).
+        """
+        return torch.cat([self.k, self.l], dim=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Computes the correlation similarity between the input and each learnable pattern.
+
+        Args:
+            x (Tensor): Input tensor of shape (B, *A, width).
+
+        Returns:
+            Tensor: Similarity scores of shape (B, *A, n), one for each pattern.
+        """
+        # Get patterns: shape (n, width)
+        patterns = self.patterns
+        p_norm = patterns.norm(dim=-1, keepdim=True)  # (n, 1)
+
+        # Reshape x_centered to (N, width) where N = product of batch and other dims.
+        orig_shape = x.shape[:-1]  # (B, *A)
+        num_vectors = x.numel() // x.shape[-1]
+        x_flat = x.reshape(num_vectors, x.shape[-1])  # (N, width)
+        x_norm = x_flat.norm(dim=-1, keepdim=True)  # (N, 1)
+
+        # Compute dot product between each input vector and each pattern.
+        # p_centered is (n, width), so its transpose is (width, n).
+        dot = torch.matmul(x_flat, patterns.T)  # (N, n)
+        denominator = x_norm * p_norm.T + self.eps  # (N, n)
+        corr = dot / denominator  # (N, n)
+
+        # Reshape back to (B, *A, n)
+        out_shape = orig_shape + (patterns.shape[0],)
+        return corr.reshape(out_shape)
+
+
+class LearnablePatternDot(nn.Module):
+    def __init__(self, n: int, width: int, eps: float = 1e-8):
+        """
+        Computes cos similarity between the input and n learnable patterns.
+
+        Args:
+            n (int): Number of learnable patterns.
+            width (int): Length of each pattern.
+            eps (float): Small constant for numerical stability.
+        """
+        super().__init__()
+        self.eps = eps
+        # For each pattern, create a learnable vector of length (width - 1) and a fixed scalar.
+        self.k = nn.Parameter(torch.rand(n, width - 1))
+        self.l = nn.Parameter(torch.ones(n, 1), requires_grad=False)
+
+    @property
+    def patterns(self) -> torch.Tensor:
+        """
+        Returns:
+            Tensor: Learnable patterns of shape (n, width).
+        """
+        return torch.cat([self.k, self.l], dim=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Computes the correlation similarity between the input and each learnable pattern.
+
+        Args:
+            x (Tensor): Input tensor of shape (B, *A, width).
+
+        Returns:
+            Tensor: Similarity scores of shape (B, *A, n), one for each pattern.
+        """
+        # Get patterns: shape (n, width)
+        patterns = self.patterns
+
+        # Reshape x_centered to (N, width) where N = product of batch and other dims.
+        orig_shape = x.shape[:-1]  # (B, *A)
+        num_vectors = x.numel() // x.shape[-1]
+        x_flat = x.reshape(num_vectors, x.shape[-1])  # (N, width)
+
+        # Compute dot product between each input vector and each pattern.
+        # p_centered is (n, width), so its transpose is (width, n).
+        dot = torch.matmul(x_flat, patterns.T)  # (N, n)
+        corr = dot  # (N, n)
+
+        # Reshape back to (B, *A, n)
+        out_shape = orig_shape + (patterns.shape[0],)
+        return corr.reshape(out_shape)
+
+
 class ExtractLearnableSlices(nn.Module):
     def __init__(self, n: int, width: int):
         super().__init__()

@@ -7,7 +7,10 @@ import pytorch_lightning as pl
 from .util import handmodel2device
 from .modules import (
     ExtractLearnableSlices,
+    LearnablePatternCosSimilarity,
+    LearnablePatternDot,
     LearnablePatternSimilarity,
+    LearnablePatternUnnormSimilarity,
     WindowedApply,
     WeightedMean,
 )
@@ -51,7 +54,7 @@ class Model(pl.LightningModule):
 
 
 class _Basis(Model):
-    def __init__(self, slices, patterns, slice_width):
+    def __init__(self, slices, patterns, slice_width, sim):
         super().__init__()
 
         self.channels = 16
@@ -76,9 +79,7 @@ class _Basis(Model):
                 ExtractLearnableSlices(
                     n=slices, width=slice_width
                 ),  # -> (B, slices, slice_width)
-                LearnablePatternSimilarity(
-                    n=patterns, width=slice_width
-                ),  # -> (B, slices, patterns)
+                sim,  # -> (B, slices, patterns)
                 nn.Flatten(),
                 nn.Linear(slices * patterns, 128, bias=False),
                 nn.ReLU(),
@@ -163,19 +164,53 @@ class _Basis(Model):
         return loss
 
 
-class DynamicSlice12_v1(_Basis):
+class DynamicSlice14_corr(_Basis):
     def __init__(self) -> None:
+        slices = 32
+        patterns = 16
+        slice_width = 65
         super().__init__(
-            slices=32,
-            patterns=16,
-            slice_width=65,
+            slices=slices,
+            patterns=patterns,
+            slice_width=slice_width,
+            sim=LearnablePatternSimilarity(n=patterns, width=slice_width),
         )
 
 
-class DynamicSlice12_v2(_Basis):
+class DynamicSlice14_unnorm(_Basis):
     def __init__(self) -> None:
+        slices = 32
+        patterns = 16
+        slice_width = 65
         super().__init__(
-            slices=32,
-            patterns=16,
-            slice_width=101,
+            slices=slices,
+            patterns=patterns,
+            slice_width=slice_width,
+            sim=LearnablePatternUnnormSimilarity(n=patterns, width=slice_width),
+        )
+
+
+class DynamicSlice14_cos(_Basis):
+    def __init__(self) -> None:
+        slices = 32
+        patterns = 16
+        slice_width = 65
+        super().__init__(
+            slices=slices,
+            patterns=patterns,
+            slice_width=slice_width,
+            sim=LearnablePatternCosSimilarity(n=patterns, width=slice_width),
+        )
+
+
+class DynamicSlice14_dot(_Basis):
+    def __init__(self) -> None:
+        slices = 32
+        patterns = 16
+        slice_width = 65
+        super().__init__(
+            slices=slices,
+            patterns=patterns,
+            slice_width=slice_width,
+            sim=LearnablePatternDot(n=patterns, width=slice_width),
         )
