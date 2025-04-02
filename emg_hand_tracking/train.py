@@ -57,10 +57,14 @@ def run_single(
         ],
     )
 
+    ckpt_path = f"./checkpoints/{model_name}.ckpt"
+    if not cont or not os.path.exists(ckpt_path):
+        ckpt_path = None
+
     trainer.fit(
         model,
         datamodule=data_module,
-        ckpt_path=f"./checkpoints/{model_name}.ckpt" if cont else None,
+        ckpt_path=ckpt_path,
     )
 
 
