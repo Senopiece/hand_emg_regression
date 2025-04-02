@@ -66,6 +66,7 @@ class DynamicSlice9_min5(Model):
 
         slices = 16
         patterns = 16
+        slice_width = 65
 
         # separate windows per prediction if feed a sequence for more than one prediction
         self.conv = WindowedApply(  # <- (B, C, T)
@@ -73,8 +74,12 @@ class DynamicSlice9_min5(Model):
             step=self.emg_samples_per_frame,
             f=nn.Sequential(  # <- (B, C, total_seq_length)
                 nn.ZeroPad1d(30),  # happens to be not needed, mb remove later
-                ExtractLearnableSlices(n=slices, width=65),  # -> (B, slices, 100)
-                LearnablePatternSimilarity(n=patterns, width=65),  # -> (B, slices, 62)
+                ExtractLearnableSlices(
+                    n=slices, width=slice_width
+                ),  # -> (B, slices, slice_width)
+                LearnablePatternSimilarity(
+                    n=patterns, width=slice_width
+                ),  # -> (B, slices, patterns)
                 nn.Flatten(),
                 nn.Linear(slices * patterns, 128, bias=False),
                 nn.ReLU(),
