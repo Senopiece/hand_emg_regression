@@ -69,7 +69,7 @@ class DynamicSlice9_min5(Model):
         slice_width = 65
 
         # separate windows per prediction if feed a sequence for more than one prediction
-        self.conv = WindowedApply(  # <- (B, C, T)
+        self.emg_feature_extract = WindowedApply(  # <- (B, C, T)
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
             f=nn.Sequential(  # <- (B, C, total_seq_length)
@@ -97,7 +97,7 @@ class DynamicSlice9_min5(Model):
 
     def _forward(self, emg, initial_poses):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
-        windows = self.conv(emg).permute(1, 0, 2)  # (W, B, 12)
+        windows = self.emg_feature_extract(emg).permute(1, 0, 2)  # (W, B, 12)
 
         outputs = []
         for emg_features in windows:
