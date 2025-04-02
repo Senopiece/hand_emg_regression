@@ -18,7 +18,8 @@ class Model(pl.LightningModule):
 
     def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
-        cls._impls[cls.__qualname__] = cls
+        if not cls.__qualname__.startswith("_"):
+            cls._impls[cls.__qualname__] = cls
 
     @classmethod
     def construct(cls, name):
@@ -49,8 +50,8 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class DynamicSlice9_min6(Model):
-    def __init__(self):
+class _Basis(Model):
+    def __init__(self, slices, patterns, slice_width):
         super().__init__()
 
         self.channels = 16
@@ -63,10 +64,6 @@ class DynamicSlice9_min6(Model):
 
         # T = total_seq_length + S*emg_samples_per_frame
         # C = channels
-
-        slices = 16
-        patterns = 16
-        slice_width = 65
 
         # separate windows per prediction if feed a sequence for more than one prediction
         self.emg_feature_extract = WindowedApply(  # <- (B, C, T)
@@ -162,3 +159,30 @@ class DynamicSlice9_min6(Model):
 
         self.log(f"{name}_loss", loss)
         return loss
+
+
+class DynamicSlice10_v1(_Basis):
+    def __init__(self) -> None:
+        super().__init__(
+            slices=16,
+            patterns=16,
+            slice_width=65,
+        )
+
+
+class DynamicSlice10_v2(_Basis):
+    def __init__(self) -> None:
+        super().__init__(
+            slices=16,
+            patterns=8,
+            slice_width=65,
+        )
+
+
+class DynamicSlice10_v3(_Basis):
+    def __init__(self) -> None:
+        super().__init__(
+            slices=8,
+            patterns=16,
+            slice_width=65,
+        )
