@@ -5,7 +5,13 @@ import torch.nn as nn
 import pytorch_lightning as pl
 
 from .util import handmodel2device
-from .modules import Unsqueeze, WindowedApply, WeightedMean
+from .modules import (
+    ExtractLearnableSlices,
+    LearnablePatternSimilarity,
+    Unsqueeze,
+    WindowedApply,
+    WeightedMean,
+)
 
 
 class Model(pl.LightningModule):
@@ -44,13 +50,13 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V4_outer_window(Model):
+class V6_dynamic_slice_v2(Model):
     def __init__(self):
         super().__init__()
 
         self.channels = 16
         self.emg_samples_per_frame = 32
-        self.frames_per_window = 6
+        self.frames_per_window = 8
 
         self.hm = load_default_hand_model()
 
@@ -59,20 +65,18 @@ class V4_outer_window(Model):
         # T = total_seq_length + S*emg_samples_per_frame
         # C = channels
 
+        slices = 256
+        patterns = 128
+
         # separate windows per prediction if feed a sequence for more than one prediction
         self.conv = WindowedApply(  # <- (B, C, T)
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
             f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.Conv1d(
-                    in_channels=self.channels,
-                    out_channels=1024,
-                    kernel_size=101,
-                    padding=50,
-                    bias=False,
-                ),  # -> (B, 1024, total_seq_length)
+                ExtractLearnableSlices(n=slices, width=100),  # -> (B, slices, 100)
+                LearnablePatternSimilarity(n=patterns, width=100),  # -> (B, slices, 62)
                 nn.Flatten(),
-                nn.Linear(1024 * self.emg_window_length, 1024),
+                nn.Linear(slices * patterns, 1024),
                 nn.ReLU(),
                 nn.Linear(1024, 512),
                 nn.ReLU(),
@@ -157,28 +161,3 @@ class V4_outer_window(Model):
 
         self.log(f"{name}_loss", loss)
         return loss
-
-
-class V5_conv2d(V4_outer_window):
-    def __init__(self):
-        super().__init__()
-        self.conv = WindowedApply(  # <- (B, C, T)
-            window_len=self.emg_window_length,
-            step=self.emg_samples_per_frame,
-            f=nn.Sequential(  # <- (B, C, total_seq_length)
-                Unsqueeze(1),  # -> (B, 1, C, window_len)
-                nn.Conv2d(
-                    in_channels=1,
-                    out_channels=64,
-                    kernel_size=(1, 101),
-                    padding=(0, 50),
-                    bias=False,
-                ),  # -> (B, 1024, C, window_len)
-                nn.Flatten(),
-                nn.Linear(64 * self.channels * self.emg_window_length, 1024),
-                nn.ReLU(),
-                nn.Linear(1024, 512),
-                nn.ReLU(),
-                nn.Linear(512, 64),
-            ),
-        )  # -> (B, W, 64), S=W

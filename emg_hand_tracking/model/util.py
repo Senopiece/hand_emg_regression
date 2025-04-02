@@ -1,3 +1,4 @@
+import torch
 from emg2pose.kinematics import HandModel
 
 
