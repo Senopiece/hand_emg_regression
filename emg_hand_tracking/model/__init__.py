@@ -49,7 +49,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class DynamicSlice9_min2(Model):
+class DynamicSlice9_min3(Model):
     def __init__(self):
         super().__init__()
 
@@ -76,9 +76,7 @@ class DynamicSlice9_min2(Model):
                 ExtractLearnableSlices(n=slices, width=65),  # -> (B, slices, 100)
                 LearnablePatternSimilarity(n=patterns, width=65),  # -> (B, slices, 62)
                 nn.Flatten(),
-                nn.Linear(slices * patterns, 512),
-                nn.ReLU(),
-                nn.Linear(512, 128),
+                nn.Linear(slices * patterns, 128, bias=False),
                 nn.ReLU(),
                 nn.Linear(128, 64),
             ),
