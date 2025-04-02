@@ -162,86 +162,40 @@ class LearnablePatternSimilarity(nn.Module):
 
 class ExtractLearnableSlices(nn.Module):
     def __init__(self, n: int, width: int):
-        """
-        Extracts n learnable slices from an input tensor using linear interpolation.
-        Each slice is defined by two learnable parameters:
-          - channel parameter (in [0, 1]): selects a continuous channel index.
-          - offset parameter (in [0, 1]): selects a continuous starting time index.
-
-        The input tensor is expected to have shape (B, C, input_len) and the output
-        will have shape (B, n, width).
-
-        Args:
-            n (int): Number of slices to extract.
-            width (int): Length of the time window to extract for each slice.
-        """
         super().__init__()
         self.n = n
         self.width = width
-        # Learnable parameters for each slice.
         self.channel_params = nn.Parameter(torch.rand(n))
         self.offset_params = nn.Parameter(torch.rand(n))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x (Tensor): Input tensor of shape (B, C, input_len).
+        B, C, L = x.shape
 
-        Returns:
-            Tensor: Output tensor of shape (B, n, width) where each slice is
-                    extracted via linear interpolation over both channels and time.
-        """
-        B, C, L = x.shape  # Batch, Channels, Time
+        # --- Channel Interpolation ---
+        desired_channels = torch.sigmoid(self.channel_params) * (C - 1)
+        floor_channels = torch.floor(desired_channels).long()
+        ceil_channels = (floor_channels + 1).clamp(max=C - 1)
+        w_channel = (desired_channels - floor_channels.float()).view(1, -1, 1)
 
-        # ----- Linear Interpolation Along Channels -----
-        # Map each channel parameter (in [0,1]) to a continuous channel index in [0, C-1].
-        desired_channels = torch.sigmoid(self.channel_params) * (C - 1)  # shape: (n,)
-        # Compute floor and ceil indices for channel interpolation.
-        floor_channels = torch.floor(desired_channels).long()  # (n,)
-        ceil_channels = (floor_channels + 1).clamp(max=C - 1)  # (n,)
-        # Fractional weight for interpolation.
-        w_channel = desired_channels - floor_channels.float()  # (n,)
+        floor_indices = floor_channels.view(1, -1, 1).expand(B, -1, L)
+        ceil_indices = ceil_channels.view(1, -1, 1).expand(B, -1, L)
+        x_floor_channel = torch.gather(x, dim=1, index=floor_indices)
+        x_ceil_channel = torch.gather(x, dim=1, index=ceil_indices)
+        x_channel = torch.lerp(x_floor_channel, x_ceil_channel, w_channel)
 
-        # Expand indices for batched gather.
-        # We want to gather along the channel dimension (dim=1) from x (shape: (B, C, L)).
-        floor_indices = floor_channels.view(1, -1, 1).expand(B, -1, L)  # (B, n, L)
-        ceil_indices = ceil_channels.view(1, -1, 1).expand(B, -1, L)  # (B, n, L)
+        # --- Time Interpolation ---
+        t0 = torch.sigmoid(self.offset_params) * (L - self.width)
+        j = torch.arange(self.width, device=x.device, dtype=x.dtype)
+        pos = t0.unsqueeze(1) + j.unsqueeze(0)
+        pos_floor = torch.floor(pos).long()
+        w_time = (pos - pos_floor.float()).unsqueeze(0)  # shape: (1, n, width)
 
-        # Gather values for floor and ceil channels.
-        x_floor_channel = torch.gather(x, dim=1, index=floor_indices)  # (B, n, L)
-        x_ceil_channel = torch.gather(x, dim=1, index=ceil_indices)  # (B, n, L)
+        pos_floor_exp = pos_floor.unsqueeze(0).expand(B, -1, -1)
+        x_floor_time = torch.gather(x_channel, dim=2, index=pos_floor_exp)
 
-        # Interpolate along the channel dimension.
-        w_channel = w_channel.view(1, -1, 1)  # reshape to (1, n, 1) for broadcasting
-        x_channel = (
-            1 - w_channel
-        ) * x_floor_channel + w_channel * x_ceil_channel  # (B, n, L)
+        # For the ceiling, use the same trick:
+        pos_ceil = (pos_floor + 1).clamp(max=L - 1)
+        pos_ceil_exp = pos_ceil.unsqueeze(0).expand(B, -1, -1)
+        x_ceil_time = torch.gather(x_channel, dim=2, index=pos_ceil_exp)
 
-        # ----- Linear Interpolation Along Time -----
-        # Map each offset parameter (in [0,1]) to a continuous starting time index in [0, L - width].
-        t0 = torch.sigmoid(self.offset_params) * (L - self.width)  # shape: (n,)
-        # Create the desired continuous positions for the output time window.
-        j = torch.arange(self.width, device=x.device, dtype=x.dtype)  # (width,)
-        pos = t0.unsqueeze(1) + j.unsqueeze(0)  # (n, width)
-
-        # Compute floor and ceil indices for time interpolation.
-        pos_floor = torch.floor(pos).long()  # (n, width)
-        pos_ceil = (pos_floor + 1).clamp(max=L - 1)  # (n, width)
-        # Fractional weights for time interpolation.
-        w_time = pos - pos_floor.float()  # (n, width)
-
-        # Expand indices to gather along the time dimension from x_channel (shape: (B, n, L)).
-        pos_floor_exp = pos_floor.unsqueeze(0).expand(B, -1, -1)  # (B, n, width)
-        pos_ceil_exp = pos_ceil.unsqueeze(0).expand(B, -1, -1)  # (B, n, width)
-
-        # Gather values for floor and ceil time indices.
-        x_floor_time = torch.gather(
-            x_channel, dim=2, index=pos_floor_exp
-        )  # (B, n, width)
-        x_ceil_time = torch.gather(
-            x_channel, dim=2, index=pos_ceil_exp
-        )  # (B, n, width)
-
-        # Interpolate along the time dimension.
-        w_time = w_time.unsqueeze(0)  # reshape to (1, n, width) for broadcasting
-        return (1 - w_time) * x_floor_time + w_time * x_ceil_time  # (B, n, width)
+        return torch.lerp(x_floor_time, x_ceil_time, w_time)
