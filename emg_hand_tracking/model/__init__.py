@@ -7,9 +7,7 @@ import pytorch_lightning as pl
 from .util import handmodel2device
 from .modules import (
     ExtractLearnableSlices,
-    ExtractLearnableSlices2,
     LearnablePatternSimilarity,
-    Unsqueeze,
     WindowedApply,
     WeightedMean,
 )
@@ -51,7 +49,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class DynamicSlice4(Model):
+class DynamicSlice8(Model):
     def __init__(self):
         super().__init__()
 

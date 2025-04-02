@@ -96,87 +96,6 @@ class WeightedMean(nn.Module):
         )
 
 
-class ExtractLearnableSlices2(nn.Module):
-    def __init__(
-        self, n: int, width: int, sigma_time: float = 1.0, sigma_channel: float = 0.1
-    ):
-        """
-        Extracts n learnable slices from an input tensor along the time dimension.
-        Each slice is determined by two learnable parameters:
-          - A channel parameter (in [0,1]) that softly selects channels.
-          - A time offset (in [0,1]) that determines the starting index of the time window.
-
-        Args:
-            n (int): Number of slices to extract.
-            width (int): Length of the time window to extract for each slice.
-            sigma_time (float): Std. deviation for the Gaussian used in soft time slicing.
-            sigma_channel (float): Std. deviation for the Gaussian used in soft channel selection.
-        """
-        super().__init__()
-        self.n = n
-        self.width = width
-        self.sigma_time = sigma_time
-        self.sigma_channel = sigma_channel
-        # Learnable parameters, one per slice.
-        self.channel_params = nn.Parameter(torch.rand(n))
-        self.offset_params = nn.Parameter(torch.rand(n))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x (Tensor): Input tensor of shape (B, C, input_len).
-
-        Returns:
-            Tensor: Output tensor of shape (B, n, width) with soft-selected slices.
-        """
-        B, C, input_len = x.shape
-
-        # ----- Soft Channel Selection (Vectorized) -----
-        # Map each channel parameter (in [0,1]) to a desired channel index in [0, C-1].
-        desired_channels = torch.sigmoid(self.channel_params) * (C - 1)  # (n,)
-        channels = torch.arange(C, device=x.device).float()  # (C,)
-        # Compute Gaussian weights for channels: shape (n, C)
-        # Each row corresponds to one slice.
-        channel_diff = channels.unsqueeze(0) - desired_channels.unsqueeze(1)  # (n, C)
-        channel_weights = torch.exp(-(channel_diff**2) / (2 * self.sigma_channel**2))
-        channel_weights = channel_weights / (
-            channel_weights.sum(dim=1, keepdim=True) + 1e-8
-        )
-        # Apply channel weights:
-        # Rearrange x to (B, input_len, C) and then perform matrix multiplication with (C, n)
-        # to obtain a weighted sum over channels for each slice.
-        x_channel = torch.matmul(
-            x.transpose(1, 2), channel_weights.T
-        )  # (B, input_len, n)
-        x_channel = x_channel.transpose(1, 2)  # (B, n, input_len)
-
-        # ----- Soft Time Slicing (Vectorized) -----
-        # Map each offset parameter (in [0,1]) to a starting time index in [0, input_len - width].
-        start = torch.sigmoid(self.offset_params) * (input_len - self.width)  # (n,)
-        # Create time indices and window indices.
-        t = torch.arange(input_len, device=x.device).float()  # (input_len,)
-        j = torch.arange(self.width, device=x.device).float()  # (width,)
-        # For each slice, compute desired positions: shape (n, width)
-        desired_positions = start.unsqueeze(1) + j.unsqueeze(0)  # (n, width)
-
-        # Build Gaussian weights for the time dimension:
-        # Expand t to (1, 1, input_len) and desired_positions to (n, width, 1)
-        t_expanded = t.view(1, 1, input_len)
-        desired_positions_expanded = desired_positions.unsqueeze(2)
-        # Compute weights: shape (n, width, input_len)
-        W = torch.exp(
-            -((t_expanded - desired_positions_expanded) ** 2) / (2 * self.sigma_time**2)
-        )
-        W = W / (W.sum(dim=-1, keepdim=True) + 1e-8)
-
-        # Apply time slicing weights to the channel-selected signal.
-        # x_channel is (B, n, input_len) and we want a weighted sum over the input_len dimension.
-        # Transpose W to (n, input_len, width) so that each slice's weights can be applied.
-        # Using einsum, we compute, for each batch and slice:
-        # out[b, i, :] = x_channel[b, i, :] dot (W[i].T)
-        return torch.einsum("bni,niw->bnw", x_channel, W.transpose(1, 2))
-
-
 class LearnablePatternSimilarity(nn.Module):
     def __init__(self, n: int, width: int, eps: float = 1e-8):
         """
@@ -325,6 +244,4 @@ class ExtractLearnableSlices(nn.Module):
 
         # Interpolate along the time dimension.
         w_time = w_time.unsqueeze(0)  # reshape to (1, n, width) for broadcasting
-        out = (1 - w_time) * x_floor_time + w_time * x_ceil_time  # (B, n, width)
-
-        return out
+        return (1 - w_time) * x_floor_time + w_time * x_ceil_time  # (B, n, width)
