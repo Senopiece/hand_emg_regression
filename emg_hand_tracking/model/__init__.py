@@ -50,7 +50,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V6_dynamic_slice_v2(Model):
+class DynamicSlice_fixpad(Model):
     def __init__(self):
         super().__init__()
 
@@ -65,7 +65,7 @@ class V6_dynamic_slice_v2(Model):
         # T = total_seq_length + S*emg_samples_per_frame
         # C = channels
 
-        slices = 256
+        slices = 128
         patterns = 128
 
         # separate windows per prediction if feed a sequence for more than one prediction
@@ -73,8 +73,9 @@ class V6_dynamic_slice_v2(Model):
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
             f=nn.Sequential(  # <- (B, C, total_seq_length)
-                ExtractLearnableSlices(n=slices, width=100),  # -> (B, slices, 100)
-                LearnablePatternSimilarity(n=patterns, width=100),  # -> (B, slices, 62)
+                nn.ZeroPad1d(50),
+                ExtractLearnableSlices(n=slices, width=101),  # -> (B, slices, 100)
+                LearnablePatternSimilarity(n=patterns, width=101),  # -> (B, slices, 62)
                 nn.Flatten(),
                 nn.Linear(slices * patterns, 1024),
                 nn.ReLU(),
