@@ -49,7 +49,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class DynamicSlice9_min5(Model):
+class DynamicSlice9_min6(Model):
     def __init__(self):
         super().__init__()
 
