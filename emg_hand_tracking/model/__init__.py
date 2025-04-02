@@ -70,7 +70,9 @@ class _Basis(Model):
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
             f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.ZeroPad1d(30),  # happens to be not needed, mb remove later
+                nn.ZeroPad1d(
+                    slice_width // 2
+                ),  # happens to be not needed, mb remove later
                 ExtractLearnableSlices(
                     n=slices, width=slice_width
                 ),  # -> (B, slices, slice_width)
@@ -161,28 +163,19 @@ class _Basis(Model):
         return loss
 
 
-class DynamicSlice11_v1(_Basis):
+class DynamicSlice12_v1(_Basis):
     def __init__(self) -> None:
         super().__init__(
-            slices=16,
+            slices=32,
             patterns=16,
             slice_width=65,
         )
 
 
-class DynamicSlice11_v2(_Basis):
+class DynamicSlice12_v2(_Basis):
     def __init__(self) -> None:
         super().__init__(
-            slices=16,
-            patterns=8,
-            slice_width=65,
-        )
-
-
-class DynamicSlice11_v3(_Basis):
-    def __init__(self) -> None:
-        super().__init__(
-            slices=8,
+            slices=32,
             patterns=16,
-            slice_width=65,
+            slice_width=101,
         )
