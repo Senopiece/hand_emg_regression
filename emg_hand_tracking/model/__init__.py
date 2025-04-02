@@ -49,7 +49,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class DynamicSlice9_min3(Model):
+class DynamicSlice9_min5(Model):
     def __init__(self):
         super().__init__()
 
@@ -64,8 +64,8 @@ class DynamicSlice9_min3(Model):
         # T = total_seq_length + S*emg_samples_per_frame
         # C = channels
 
-        slices = 32
-        patterns = 32
+        slices = 16
+        patterns = 16
 
         # separate windows per prediction if feed a sequence for more than one prediction
         self.conv = WindowedApply(  # <- (B, C, T)
@@ -78,14 +78,14 @@ class DynamicSlice9_min3(Model):
                 nn.Flatten(),
                 nn.Linear(slices * patterns, 128, bias=False),
                 nn.ReLU(),
-                nn.Linear(128, 64),
+                nn.Linear(128, 32),
             ),
-        )  # -> (B, W, 64), S=W
+        )  # -> (B, W, 32), S=W
 
         self.predict = nn.Sequential(
-            nn.Linear(self.frames_per_window * 20 + 64, 512),
+            nn.Linear(self.frames_per_window * 20 + 32, 128),
             nn.ReLU(),
-            nn.Linear(512, 20),
+            nn.Linear(128, 20),
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
