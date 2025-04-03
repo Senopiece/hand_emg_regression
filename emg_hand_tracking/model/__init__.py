@@ -78,7 +78,7 @@ class Model(pl.LightningModule):
 
 
 class _Base(Model):
-    """DynamicSlice15Relu"""
+    """DynamicSlice16"""
 
     def __init__(self, slices, patterns, slice_width, sim):
         super().__init__()
@@ -107,7 +107,6 @@ class _Base(Model):
                 ),  # -> (B, slices, slice_width)
                 sim,  # -> (B, slices, patterns)
                 nn.Flatten(),
-                nn.ReLU(),
                 nn.Linear(slices * patterns, 128, bias=False),
                 nn.ReLU(),
                 nn.Linear(128, 32),
