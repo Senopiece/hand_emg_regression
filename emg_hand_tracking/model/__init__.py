@@ -234,7 +234,7 @@ class unnorm(_BaseMultiF):
         super().__init__(LearnablePatternUnnormSimilarity)
 
 
-class DynamicSlice19_big(_Base):
+class _DynamicSlice19_big(_Base):
     def __init__(self):
         super().__init__()
 
