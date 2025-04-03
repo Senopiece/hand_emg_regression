@@ -49,9 +49,8 @@ class Model(pl.LightningModule):
 
     def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
-        name = cls.name()
-        if name != "":
-            cls._impls[name] = cls
+        if not cls.__name__.startswith("_"):
+            cls._impls[cls.name()] = cls
 
     @classmethod
     def name(cls):
