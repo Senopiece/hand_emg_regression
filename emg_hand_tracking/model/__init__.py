@@ -8,6 +8,14 @@ from .util import handmodel2device
 from .modules import (
     ExtractLearnableSlices,
     LearnablePatternCosSimilarity,
+    LearnablePatternDot,
+    LearnablePatternSimilarity,
+    LearnablePatternUnnormSimilarity,
+    Max,
+    Mean,
+    Parallel,
+    StdDev,
+    Variance,
     WindowedApply,
     WeightedMean,
 )
@@ -75,13 +83,15 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class DynamicSlice19_big(Model):
-    def __init__(self):
+class _Base(Model):
+    """DynamicSlice20BigMultifeatured"""
+
+    def __init__(self, sim):
         super().__init__()
 
         slices = 256
         patterns = 128
-        slice_width = 65
+        slice_width = 33
         E = 64  # emg feature size
 
         self.channels = 16
@@ -106,13 +116,19 @@ class DynamicSlice19_big(Model):
                 ExtractLearnableSlices(
                     n=slices, width=slice_width
                 ),  # -> (B, slices, slice_width)
-                LearnablePatternCosSimilarity(
-                    n=patterns, width=slice_width
-                ),  # -> (B, slices, patterns)
-                nn.Flatten(),
-                nn.Linear(slices * patterns, 512, bias=False),
+                Parallel(
+                    nn.Sequential(
+                        sim(n=patterns, width=slice_width),  # -> (B, slices, patterns)
+                        nn.Flatten(),  # -> (B, slices*patterns)
+                    ),
+                    Variance(),  # -> (B, slices)
+                    Mean(),  # -> (B, slices)
+                    Max(),  # -> (B, slices)
+                    StdDev(),  # -> (B, slices)
+                ),
+                nn.Linear(slices * patterns + 4 * slices, 1024, bias=False),
                 nn.ReLU(),
-                nn.Linear(512, E),
+                nn.Linear(1024, E),
             ),
         )  # -> (B, W, E), S=W
 
@@ -191,3 +207,23 @@ class DynamicSlice19_big(Model):
 
         self.log(f"{name}_loss", loss)
         return loss
+
+
+class dot(_Base):
+    def __init__(self):
+        super().__init__(LearnablePatternDot)
+
+
+class cos(_Base):
+    def __init__(self):
+        super().__init__(LearnablePatternCosSimilarity)
+
+
+class corr(_Base):
+    def __init__(self):
+        super().__init__(LearnablePatternSimilarity)
+
+
+class unnorm(_Base):
+    def __init__(self):
+        super().__init__(LearnablePatternUnnormSimilarity)
