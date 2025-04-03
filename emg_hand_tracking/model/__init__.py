@@ -8,9 +8,6 @@ from .util import handmodel2device
 from .modules import (
     ExtractLearnableSlices,
     LearnablePatternCosSimilarity,
-    LearnablePatternDot,
-    LearnablePatternSimilarity,
-    LearnablePatternUnnormSimilarity,
     WindowedApply,
     WeightedMean,
 )
@@ -78,9 +75,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class _Base(Model):
-    """DynamicSlice16"""
-
+class DynamicSlice17_no_filter(Model):
     def __init__(self, slices, patterns, slice_width, sim):
         super().__init__()
 
@@ -106,7 +101,9 @@ class _Base(Model):
                 ExtractLearnableSlices(
                     n=slices, width=slice_width
                 ),  # -> (B, slices, slice_width)
-                sim,  # -> (B, slices, patterns)
+                LearnablePatternCosSimilarity(
+                    n=patterns, width=slice_width
+                ),  # -> (B, slices, patterns)
                 nn.Flatten(),
                 nn.Linear(slices * patterns, 128, bias=False),
                 nn.ReLU(),
@@ -120,7 +117,7 @@ class _Base(Model):
             nn.Linear(128, 20),
         )
 
-        self.filter = WeightedMean(self.frames_per_window + 1)
+        # self.filter = WeightedMean(self.frames_per_window + 1)
 
     def _forward(self, emg, initial_poses):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
@@ -138,8 +135,9 @@ class _Base(Model):
 
             # Update prediction with filter
             # (B, 20)
-            all_poses = torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
-            pos_pred_update = self.filter(all_poses)
+            # all_poses = torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
+            # pos_pred_update = self.filter(all_poses)
+            pos_pred_update = pos_pred
 
             outputs.append(pos_pred_update)
 
@@ -189,55 +187,3 @@ class _Base(Model):
 
         self.log(f"{name}_loss", loss)
         return loss
-
-
-class corr(_Base):
-    def __init__(self) -> None:
-        slices = 32
-        patterns = 16
-        slice_width = 65
-        super().__init__(
-            slices=slices,
-            patterns=patterns,
-            slice_width=slice_width,
-            sim=LearnablePatternSimilarity(n=patterns, width=slice_width),
-        )
-
-
-class unnorm(_Base):
-    def __init__(self) -> None:
-        slices = 32
-        patterns = 16
-        slice_width = 65
-        super().__init__(
-            slices=slices,
-            patterns=patterns,
-            slice_width=slice_width,
-            sim=LearnablePatternUnnormSimilarity(n=patterns, width=slice_width),
-        )
-
-
-class cos(_Base):
-    def __init__(self) -> None:
-        slices = 32
-        patterns = 16
-        slice_width = 65
-        super().__init__(
-            slices=slices,
-            patterns=patterns,
-            slice_width=slice_width,
-            sim=LearnablePatternCosSimilarity(n=patterns, width=slice_width),
-        )
-
-
-class dot(_Base):
-    def __init__(self) -> None:
-        slices = 32
-        patterns = 16
-        slice_width = 65
-        super().__init__(
-            slices=slices,
-            patterns=patterns,
-            slice_width=slice_width,
-            sim=LearnablePatternDot(n=patterns, width=slice_width),
-        )
