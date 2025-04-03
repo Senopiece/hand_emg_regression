@@ -19,10 +19,34 @@ from .modules import (
 class Model(pl.LightningModule):
     _impls: Dict[str, type["Model"]] = {}
 
+    @staticmethod
+    def _resolve_name(c: type):
+        if c.__doc__:
+            docstring = c.__doc__.strip()
+            assert (
+                docstring.isalnum()
+            ), f"Class docstring must be alphanumeric: {docstring}"
+            return docstring
+        else:
+            return c.__name__
+
     def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
+        # Use all superclasses in the chain as a prefix for registration
+
         if not cls.__qualname__.startswith("_"):
-            cls._impls[cls.__qualname__] = cls
+            # Resolve the prefix using the docstring or class name of all superclasses
+            prefix = "_".join(
+                Model._resolve_name(base)
+                for base in cls.__bases__
+                if base.__name__ != "Model" and base.__name__ != "object"
+            )
+
+            # Use the current class's docstring if available, otherwise fallback to its name
+            suffix = Model._resolve_name(cls)
+
+            # Register the class with the resolved name
+            cls._impls[f"{prefix}_{suffix}"] = cls
 
     @classmethod
     def construct(cls, name):
@@ -53,7 +77,9 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class _Basis(Model):
+class _Base(Model):
+    """DynamicSlice15Relu"""
+
     def __init__(self, slices, patterns, slice_width, sim):
         super().__init__()
 
@@ -81,6 +107,7 @@ class _Basis(Model):
                 ),  # -> (B, slices, slice_width)
                 sim,  # -> (B, slices, patterns)
                 nn.Flatten(),
+                nn.ReLU(),
                 nn.Linear(slices * patterns, 128, bias=False),
                 nn.ReLU(),
                 nn.Linear(128, 32),
@@ -164,7 +191,7 @@ class _Basis(Model):
         return loss
 
 
-class DynamicSlice14_corr(_Basis):
+class corr(_Base):
     def __init__(self) -> None:
         slices = 32
         patterns = 16
@@ -177,7 +204,7 @@ class DynamicSlice14_corr(_Basis):
         )
 
 
-class DynamicSlice14_unnorm(_Basis):
+class unnorm(_Base):
     def __init__(self) -> None:
         slices = 32
         patterns = 16
@@ -190,7 +217,7 @@ class DynamicSlice14_unnorm(_Basis):
         )
 
 
-class DynamicSlice14_cos(_Basis):
+class cos(_Base):
     def __init__(self) -> None:
         slices = 32
         patterns = 16
@@ -203,7 +230,7 @@ class DynamicSlice14_cos(_Basis):
         )
 
 
-class DynamicSlice14_dot(_Basis):
+class dot(_Base):
     def __init__(self) -> None:
         slices = 32
         patterns = 16
