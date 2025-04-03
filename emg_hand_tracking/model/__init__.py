@@ -33,6 +33,8 @@ class Model(pl.LightningModule):
             ), f"Class docstring must be alphanumeric: {docstring}"
             return docstring
         else:
+            if c.__name__.startswith("_"):
+                return ""
             return c.__name__
 
     @staticmethod
@@ -47,8 +49,9 @@ class Model(pl.LightningModule):
 
     def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
-        if not cls.__qualname__.startswith("_"):
-            cls._impls[cls.name()] = cls
+        name = cls.name()
+        if name != "":
+            cls._impls[name] = cls
 
     @classmethod
     def name(cls):
@@ -84,62 +87,6 @@ class Model(pl.LightningModule):
 
 
 class _Base(Model):
-    """DynamicSlice20BigMultifeatured"""
-
-    def __init__(self, sim):
-        super().__init__()
-
-        slices = 256
-        patterns = 128
-        slice_width = 33
-        E = 64  # emg feature size
-
-        self.channels = 16
-        self.emg_samples_per_frame = 32
-        self.frames_per_window = 8
-
-        self.hm = load_default_hand_model()
-
-        self.emg_window_length = self.emg_samples_per_frame * self.frames_per_window
-
-        # T = total_seq_length + S*emg_samples_per_frame
-        # C = channels
-
-        # separate windows per prediction if feed a sequence for more than one prediction
-        self.emg_feature_extract = WindowedApply(  # <- (B, C, T)
-            window_len=self.emg_window_length,
-            step=self.emg_samples_per_frame,
-            f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.ZeroPad1d(
-                    slice_width // 2
-                ),  # happens to be not needed, mb remove later
-                ExtractLearnableSlices(
-                    n=slices, width=slice_width
-                ),  # -> (B, slices, slice_width)
-                Parallel(
-                    nn.Sequential(
-                        sim(n=patterns, width=slice_width),  # -> (B, slices, patterns)
-                        nn.Flatten(),  # -> (B, slices*patterns)
-                    ),
-                    Variance(),  # -> (B, slices)
-                    Mean(),  # -> (B, slices)
-                    Max(),  # -> (B, slices)
-                    StdDev(),  # -> (B, slices)
-                ),
-                nn.Linear(slices * patterns + 4 * slices, 1024, bias=False),
-                nn.ReLU(),
-                nn.Linear(1024, E),
-            ),
-        )  # -> (B, W, E), S=W
-
-        self.predict = nn.Sequential(
-            nn.Linear(self.frames_per_window * 20 + E, 512),
-            nn.ReLU(),
-            nn.Linear(512, 20),
-        )
-
-        self.filter = WeightedMean(self.frames_per_window + 1)
-
     def _forward(self, emg, initial_poses):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
         windows = self.emg_feature_extract(emg).permute(1, 0, 2)  # (W, B, E)
@@ -209,21 +156,129 @@ class _Base(Model):
         return loss
 
 
-class dot(_Base):
+class _BaseMultiF(_Base):
+    """DynamicSlice21BigMultifeatured"""
+
+    def __init__(self, sim):
+        super().__init__()
+
+        slices = 256
+        patterns = 128
+        slice_width = 33
+        E = 64  # emg feature size
+
+        self.channels = 16
+        self.emg_samples_per_frame = 32
+        self.frames_per_window = 8
+
+        self.hm = load_default_hand_model()
+
+        self.emg_window_length = self.emg_samples_per_frame * self.frames_per_window
+
+        # T = total_seq_length + S*emg_samples_per_frame
+        # C = channels
+
+        # separate windows per prediction if feed a sequence for more than one prediction
+        self.emg_feature_extract = WindowedApply(  # <- (B, C, T)
+            window_len=self.emg_window_length,
+            step=self.emg_samples_per_frame,
+            f=nn.Sequential(  # <- (B, C, total_seq_length)
+                nn.ZeroPad1d(
+                    slice_width // 2
+                ),  # happens to be not needed, mb remove later
+                ExtractLearnableSlices(
+                    n=slices, width=slice_width
+                ),  # -> (B, slices, slice_width)
+                Parallel(
+                    nn.Sequential(
+                        sim(n=patterns, width=slice_width),  # -> (B, slices, patterns)
+                        nn.Flatten(),  # -> (B, slices*patterns)
+                    ),
+                    Variance(),  # -> (B, slices)
+                    Mean(),  # -> (B, slices)
+                    Max(),  # -> (B, slices)
+                    StdDev(),  # -> (B, slices)
+                ),
+                nn.Linear(slices * patterns + 4 * slices, 1024, bias=False),
+                nn.ReLU(),
+                nn.Linear(1024, E),
+            ),
+        )  # -> (B, W, E), S=W
+
+        self.predict = nn.Sequential(
+            nn.Linear(self.frames_per_window * 20 + E, 512),
+            nn.ReLU(),
+            nn.Linear(512, 20),
+        )
+
+        self.filter = WeightedMean(self.frames_per_window + 1)
+
+
+class dot(_BaseMultiF):
     def __init__(self):
         super().__init__(LearnablePatternDot)
 
 
-class cos(_Base):
+class cos(_BaseMultiF):
     def __init__(self):
         super().__init__(LearnablePatternCosSimilarity)
 
 
-class corr(_Base):
+class corr(_BaseMultiF):
     def __init__(self):
         super().__init__(LearnablePatternSimilarity)
 
 
-class unnorm(_Base):
+class unnorm(_BaseMultiF):
     def __init__(self):
         super().__init__(LearnablePatternUnnormSimilarity)
+
+
+class DynamicSlice19_big(_Base):
+    def __init__(self):
+        super().__init__()
+
+        slices = 256
+        patterns = 128
+        slice_width = 65
+        E = 64  # emg feature size
+
+        self.channels = 16
+        self.emg_samples_per_frame = 32
+        self.frames_per_window = 8
+
+        self.hm = load_default_hand_model()
+
+        self.emg_window_length = self.emg_samples_per_frame * self.frames_per_window
+
+        # T = total_seq_length + S*emg_samples_per_frame
+        # C = channels
+
+        # separate windows per prediction if feed a sequence for more than one prediction
+        self.emg_feature_extract = WindowedApply(  # <- (B, C, T)
+            window_len=self.emg_window_length,
+            step=self.emg_samples_per_frame,
+            f=nn.Sequential(  # <- (B, C, total_seq_length)
+                nn.ZeroPad1d(
+                    slice_width // 2
+                ),  # happens to be not needed, mb remove later
+                ExtractLearnableSlices(
+                    n=slices, width=slice_width
+                ),  # -> (B, slices, slice_width)
+                LearnablePatternCosSimilarity(
+                    n=patterns, width=slice_width
+                ),  # -> (B, slices, patterns)
+                nn.Flatten(),
+                nn.Linear(slices * patterns, 512, bias=False),
+                nn.ReLU(),
+                nn.Linear(512, E),
+            ),
+        )  # -> (B, W, E), S=W
+
+        self.predict = nn.Sequential(
+            nn.Linear(self.frames_per_window * 20 + E, 512),
+            nn.ReLU(),
+            nn.Linear(512, 20),
+        )
+
+        self.filter = WeightedMean(self.frames_per_window + 1)
