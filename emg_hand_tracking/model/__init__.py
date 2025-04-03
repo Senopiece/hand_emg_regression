@@ -35,7 +35,7 @@ class Model(pl.LightningModule):
             if base.__name__ != "Model" and base.__name__ != "object"
         )
         suffix = Model._resolve_immediate_name(c)
-        return f"{prefix}_{suffix}"
+        return f"{prefix}_{suffix}" if prefix != "" else suffix
 
     def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
@@ -75,9 +75,14 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class DynamicSlice17_no_filter(Model):
-    def __init__(self, slices, patterns, slice_width, sim):
+class DynamicSlice19_big(Model):
+    def __init__(self):
         super().__init__()
+
+        slices = 256
+        patterns = 128
+        slice_width = 65
+        E = 64  # emg feature size
 
         self.channels = 16
         self.emg_samples_per_frame = 32
@@ -105,23 +110,23 @@ class DynamicSlice17_no_filter(Model):
                     n=patterns, width=slice_width
                 ),  # -> (B, slices, patterns)
                 nn.Flatten(),
-                nn.Linear(slices * patterns, 128, bias=False),
+                nn.Linear(slices * patterns, 512, bias=False),
                 nn.ReLU(),
-                nn.Linear(128, 32),
+                nn.Linear(512, E),
             ),
-        )  # -> (B, W, 32), S=W
+        )  # -> (B, W, E), S=W
 
         self.predict = nn.Sequential(
-            nn.Linear(self.frames_per_window * 20 + 32, 128),
+            nn.Linear(self.frames_per_window * 20 + E, 512),
             nn.ReLU(),
-            nn.Linear(128, 20),
+            nn.Linear(512, 20),
         )
 
-        # self.filter = WeightedMean(self.frames_per_window + 1)
+        self.filter = WeightedMean(self.frames_per_window + 1)
 
     def _forward(self, emg, initial_poses):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
-        windows = self.emg_feature_extract(emg).permute(1, 0, 2)  # (W, B, 12)
+        windows = self.emg_feature_extract(emg).permute(1, 0, 2)  # (W, B, E)
 
         outputs = []
         for emg_features in windows:
@@ -129,15 +134,14 @@ class DynamicSlice17_no_filter(Model):
             initial_poses_flat = initial_poses.flatten(start_dim=1)
 
             # Concatenate the EMG and joint context features.
-            # (B, frames_per_window * 20 + 64)
+            # (B, frames_per_window * 20 + E)
             combined = torch.cat([initial_poses_flat, emg_features], dim=1)
             pos_pred = self.predict(combined)  # (B, 20)
 
             # Update prediction with filter
             # (B, 20)
-            # all_poses = torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
-            # pos_pred_update = self.filter(all_poses)
-            pos_pred_update = pos_pred
+            all_poses = torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
+            pos_pred_update = self.filter(all_poses)
 
             outputs.append(pos_pred_update)
 
