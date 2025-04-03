@@ -213,11 +213,6 @@ class _BaseMultiF(_Base):
         self.filter = WeightedMean(self.frames_per_window + 1)
 
 
-class dot(_BaseMultiF):
-    def __init__(self):
-        super().__init__(LearnablePatternDot)
-
-
 class cos(_BaseMultiF):
     def __init__(self):
         super().__init__(LearnablePatternCosSimilarity)
