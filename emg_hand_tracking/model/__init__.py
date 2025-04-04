@@ -158,7 +158,7 @@ class V30(_Base):
         patterns = 128
 
         # TODO: gridsearch this values
-        pattern_subfeature_windows = 6  # TODO: mb separate for subfeatures
+        pattern_subfeature_windows = 3  # TODO: mb separate for subfeatures
         pattern_subfeature_width = 10
         pattern_subfeature_stride = 5
 
