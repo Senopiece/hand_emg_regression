@@ -10,7 +10,6 @@ from .modules import (
     LearnablePatternSimilarity,
     Max,
     Parallel,
-    Permute,
     StdDev,
     WindowedApply,
     WeightedMean,
@@ -151,16 +150,16 @@ class _Base(Model):
         return loss
 
 
-class V33_max_std(_Base):
+class V34(_Base):
     def __init__(self):
         super().__init__()
 
         slices = 256
         patterns = 128
 
-        pattern_subfeature_windows = 6  # TODO: mb separate for subfeatures
-        pattern_subfeature_width = 10
-        pattern_subfeature_stride = 5
+        pattern_subfeature_windows = 10  # TODO: mb separate for subfeatures
+        pattern_subfeature_width = 7
+        pattern_subfeature_stride = 3
 
         slice_width = (
             pattern_subfeature_width
@@ -205,8 +204,7 @@ class V33_max_std(_Base):
                             # -> (B, slices, pattern_subfeature_width)
                             f=StdDev(),  # -> (B, slices)
                         ),  # -> (B, W, slices)
-                        Permute(0, 2, 1),  # -> (B, slices, W)
-                        Max(),  # -> (B, slices)
+                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
                     ),
                     nn.Sequential(
                         WindowedApply(
@@ -221,16 +219,16 @@ class V33_max_std(_Base):
                 nn.Linear(
                     slices * patterns + 2 * slices,
                     2048,
-                ),
+                ),  # TODO: mb bias = False
                 nn.ReLU(),
-                nn.Linear(2048, E),
+                nn.Linear(2048, E),  # TODO: mb bias = False
             ),
         )  # -> (B, W, E), S=W
 
         self.predict = nn.Sequential(
-            nn.Linear(self.frames_per_window * 20 + E, 1024),
+            nn.Linear(self.frames_per_window * 20 + E, 1024),  # TODO: mb bias = False
             nn.ReLU(),
-            nn.Linear(1024, 20),
+            nn.Linear(1024, 20),  # TODO: mb bias = False
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
