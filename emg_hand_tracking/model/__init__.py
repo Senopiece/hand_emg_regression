@@ -150,7 +150,7 @@ class _Base(Model):
         return loss
 
 
-class V30(_Base):
+class V31(_Base):
     def __init__(self):
         super().__init__()
 
@@ -218,7 +218,7 @@ class V30(_Base):
                     ),
                 ),
                 nn.Linear(
-                    slices * patterns + 2 * pattern_subfeature_windows * slices, 2048
+                    slices * patterns + 2 * slices, 2048
                 ),  # TODO: mb bias = False
                 nn.ReLU(),
                 nn.Linear(2048, E),  # TODO: mb bias = False
