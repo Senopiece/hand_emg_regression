@@ -151,7 +151,7 @@ class _Base(Model):
         return loss
 
 
-class V32(_Base):
+class V33_max_std(_Base):
     def __init__(self):
         super().__init__()
 
