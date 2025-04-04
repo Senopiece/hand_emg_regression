@@ -10,6 +10,7 @@ from .modules import (
     LearnablePatternSimilarity,
     Max,
     Parallel,
+    Permute,
     StdDev,
     WindowedApply,
     WeightedMean,
@@ -204,7 +205,8 @@ class V32(_Base):
                             # -> (B, slices, pattern_subfeature_width)
                             f=StdDev(),  # -> (B, slices)
                         ),  # -> (B, W, slices)
-                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
+                        Permute(0, 2, 1),  # -> (B, slices, W)
+                        Max(),  # -> (B, slices)
                     ),
                     nn.Sequential(
                         WindowedApply(
@@ -217,17 +219,18 @@ class V32(_Base):
                     ),
                 ),
                 nn.Linear(
-                    slices * patterns + 2 * slices, 2048
-                ),  # TODO: mb bias = False
+                    slices * patterns + 2 * slices,
+                    2048,
+                ),
                 nn.ReLU(),
-                nn.Linear(2048, E),  # TODO: mb bias = False
+                nn.Linear(2048, E),
             ),
         )  # -> (B, W, E), S=W
 
         self.predict = nn.Sequential(
-            nn.Linear(self.frames_per_window * 20 + E, 1024),  # TODO: mb bias = False
+            nn.Linear(self.frames_per_window * 20 + E, 1024),
             nn.ReLU(),
-            nn.Linear(1024, 20),  # TODO: mb bias = False
+            nn.Linear(1024, 20),
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)

@@ -1,6 +1,14 @@
-import torch.nn.functional as F
 from torch import nn, Tensor
 import torch
+
+
+class Permute(nn.Module):
+    def __init__(self, *dims):
+        super().__init__()
+        self.dims = dims
+
+    def forward(self, x):
+        return x.permute(*self.dims)
 
 
 class Unsqueeze(nn.Module):
