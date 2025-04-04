@@ -49,6 +49,7 @@ def run_single(
         callbacks=[
             ModelCheckpoint(
                 dirpath="checkpoints",
+                save_weights_only=True,
                 filename=model_name,
                 save_top_k=1,
                 monitor="val_loss",
