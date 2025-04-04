@@ -38,7 +38,7 @@ def run_single(
 
     print("Preparing trainer...")
     trainer = Trainer(
-        max_epochs=10000,
+        max_epochs=5000,
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
         enable_progress_bar=False,

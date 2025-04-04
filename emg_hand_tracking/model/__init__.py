@@ -151,7 +151,7 @@ class _Base(Model):
         return loss
 
 
-class DynamicSliceMultifeatured25Big_smol_sftre(_Base):
+class DynamicSliceMultifeatured26Big_smol_sftre(_Base):
     def __init__(self):
         super().__init__()
 
@@ -232,7 +232,7 @@ class DynamicSliceMultifeatured25Big_smol_sftre(_Base):
         self.filter = WeightedMean(self.frames_per_window + 1)
 
 
-class DynamicSliceMultifeatured25Big_nrelu(_Base):
+class DynamicSliceMultifeatured26Big_nrelu(_Base):
     def __init__(self):
         super().__init__()
 
@@ -312,7 +312,7 @@ class DynamicSliceMultifeatured25Big_nrelu(_Base):
         self.filter = WeightedMean(self.frames_per_window + 1)
 
 
-class DynamicSliceMultifeatured25Big_nbias(_Base):
+class DynamicSliceMultifeatured26Big_nbias(_Base):
     def __init__(self):
         super().__init__()
 
