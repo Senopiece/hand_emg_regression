@@ -150,7 +150,7 @@ class _Base(Model):
         return loss
 
 
-class V28(_Base):
+class V29(_Base):
     def __init__(self):
         super().__init__()
 
@@ -196,6 +196,7 @@ class V28(_Base):
                             n=patterns, width=slice_width
                         ),  # -> (B, slices, patterns)
                         nn.Flatten(),  # -> (B, slices*patterns)
+                        nn.ReLU(),
                     ),
                     nn.Sequential(
                         WindowedApply(
