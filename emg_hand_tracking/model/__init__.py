@@ -150,7 +150,7 @@ class _Base(Model):
         return loss
 
 
-class DynamicSliceMultifeatured22Big(_Base):
+class DynamicSliceMultifeatured23Big(_Base):
     def __init__(self):
         super().__init__()
 
