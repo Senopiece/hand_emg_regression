@@ -150,7 +150,7 @@ class _Base(Model):
         return loss
 
 
-class V27(_Base):
+class V28(_Base):
     def __init__(self):
         super().__init__()
 
