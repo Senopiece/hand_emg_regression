@@ -158,9 +158,9 @@ class V33_max_std(_Base):
         slices = 256
         patterns = 128
 
-        pattern_subfeature_windows = 10  # TODO: mb separate for subfeatures
-        pattern_subfeature_width = 7
-        pattern_subfeature_stride = 3
+        pattern_subfeature_windows = 6  # TODO: mb separate for subfeatures
+        pattern_subfeature_width = 10
+        pattern_subfeature_stride = 5
 
         slice_width = (
             pattern_subfeature_width
