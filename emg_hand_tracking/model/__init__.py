@@ -196,7 +196,6 @@ class V27(_Base):
                             n=patterns, width=slice_width
                         ),  # -> (B, slices, patterns)
                         nn.Flatten(),  # -> (B, slices*patterns)
-                        nn.ReLU(),  # TODO: mb without it
                     ),
                     nn.Sequential(
                         WindowedApply(
