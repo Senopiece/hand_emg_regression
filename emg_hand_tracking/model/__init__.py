@@ -150,17 +150,16 @@ class _Base(Model):
         return loss
 
 
-class V31(_Base):
+class V32(_Base):
     def __init__(self):
         super().__init__()
 
         slices = 256
         patterns = 128
 
-        # TODO: gridsearch this values
-        pattern_subfeature_windows = 3  # TODO: mb separate for subfeatures
-        pattern_subfeature_width = 10
-        pattern_subfeature_stride = 5
+        pattern_subfeature_windows = 10  # TODO: mb separate for subfeatures
+        pattern_subfeature_width = 7
+        pattern_subfeature_stride = 3
 
         slice_width = (
             pattern_subfeature_width
