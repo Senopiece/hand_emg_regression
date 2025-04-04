@@ -150,7 +150,7 @@ class _Base(Model):
         return loss
 
 
-class V29_flatten(_Base):
+class V30(_Base):
     def __init__(self):
         super().__init__()
 
@@ -205,8 +205,7 @@ class V29_flatten(_Base):
                             # -> (B, slices, pattern_subfeature_width)
                             f=StdDev(),  # -> (B, slices)
                         ),  # -> (B, W, slices)
-                        nn.Flatten(),  # -> (B, W*patterns)
-                        # WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
+                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
                     ),
                     nn.Sequential(
                         WindowedApply(
@@ -215,8 +214,7 @@ class V29_flatten(_Base):
                             # -> (B, slices, pattern_subfeature_width)
                             f=Max(),  # -> (B, slices)
                         ),  # -> (B, W, slices)
-                        nn.Flatten(),  # -> (B, W*patterns)
-                        # WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
+                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
                     ),
                 ),
                 nn.Linear(
