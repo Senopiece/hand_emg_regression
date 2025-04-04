@@ -9,7 +9,6 @@ from .modules import (
     ExtractLearnableSlices,
     LearnablePatternSimilarity,
     Max,
-    Mean,
     Parallel,
     StdDev,
     WindowedApply,
