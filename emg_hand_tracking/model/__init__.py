@@ -9,6 +9,7 @@ from .modules import (
     ExtractLearnableSlices,
     LearnablePatternSimilarity,
     Max,
+    Mean,
     Parallel,
     StdDev,
     WindowedApply,
@@ -150,13 +151,13 @@ class _Base(Model):
         return loss
 
 
-class DynamicSliceMultifeatured24Big(_Base):
+class DynamicSliceMultifeatured25Big_smol_sftre(_Base):
     def __init__(self):
         super().__init__()
 
         slices = 256
         patterns = 128
-        pattern_subfeature_windows = 13  # TODO: mb separate for subfeatures
+        pattern_subfeature_windows = 6  # TODO: mb separate for subfeatures
         pattern_subfeature_width = 10
         pattern_subfeature_stride = 5
         slice_width = (
