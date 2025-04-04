@@ -150,15 +150,18 @@ class _Base(Model):
         return loss
 
 
-class DynamicSliceMultifeatured26Big_smol_sftre(_Base):
+class V27(_Base):
     def __init__(self):
         super().__init__()
 
         slices = 256
         patterns = 128
+
+        # TODO: gridsearch this values
         pattern_subfeature_windows = 6  # TODO: mb separate for subfeatures
         pattern_subfeature_width = 10
         pattern_subfeature_stride = 5
+
         slice_width = (
             pattern_subfeature_width
             + (pattern_subfeature_windows - 1) * pattern_subfeature_stride
@@ -193,7 +196,7 @@ class DynamicSliceMultifeatured26Big_smol_sftre(_Base):
                             n=patterns, width=slice_width
                         ),  # -> (B, slices, patterns)
                         nn.Flatten(),  # -> (B, slices*patterns)
-                        nn.ReLU(),
+                        nn.ReLU(),  # TODO: mb without it
                     ),
                     nn.Sequential(
                         WindowedApply(
@@ -202,6 +205,7 @@ class DynamicSliceMultifeatured26Big_smol_sftre(_Base):
                             # -> (B, slices, pattern_subfeature_width)
                             f=StdDev(),  # -> (B, slices)
                         ),  # -> (B, W, slices)
+                        # TODO: mb flatten instead
                         WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
                     ),
                     nn.Sequential(
@@ -211,170 +215,13 @@ class DynamicSliceMultifeatured26Big_smol_sftre(_Base):
                             # -> (B, slices, pattern_subfeature_width)
                             f=Max(),  # -> (B, slices)
                         ),  # -> (B, W, slices)
+                        # TODO: mb flatten instead
                         WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
                     ),
                 ),
                 nn.Linear(
                     slices * patterns + 2 * slices, 2048
                 ),  # TODO: mb bias = False
-                nn.ReLU(),
-                nn.Linear(2048, E),  # TODO: mb bias = False
-            ),
-        )  # -> (B, W, E), S=W
-
-        self.predict = nn.Sequential(
-            nn.Linear(self.frames_per_window * 20 + E, 1024),  # TODO: mb bias = False
-            nn.ReLU(),
-            nn.Linear(1024, 20),  # TODO: mb bias = False
-        )
-
-        self.filter = WeightedMean(self.frames_per_window + 1)
-
-
-class DynamicSliceMultifeatured26Big_nrelu(_Base):
-    def __init__(self):
-        super().__init__()
-
-        slices = 256
-        patterns = 128
-        pattern_subfeature_windows = 13  # TODO: mb separate for subfeatures
-        pattern_subfeature_width = 10
-        pattern_subfeature_stride = 5
-        slice_width = (
-            pattern_subfeature_width
-            + (pattern_subfeature_windows - 1) * pattern_subfeature_stride
-        )
-        E = 64  # emg feature size
-
-        self.channels = 16
-        self.emg_samples_per_frame = 32
-        self.frames_per_window = 8
-
-        self.hm = load_default_hand_model()
-
-        self.emg_window_length = self.emg_samples_per_frame * self.frames_per_window
-
-        # T = total_seq_length + S*emg_samples_per_frame
-        # C = channels
-
-        # separate windows per prediction if feed a sequence for more than one prediction
-        self.emg_feature_extract = WindowedApply(  # <- (B, C, T)
-            window_len=self.emg_window_length,
-            step=self.emg_samples_per_frame,
-            f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.ZeroPad1d(
-                    slice_width // 2
-                ),  # happens to be not needed, mb remove later
-                ExtractLearnableSlices(
-                    n=slices, width=slice_width
-                ),  # -> (B, slices, slice_width)
-                Parallel(
-                    nn.Sequential(
-                        LearnablePatternSimilarity(
-                            n=patterns, width=slice_width
-                        ),  # -> (B, slices, patterns)
-                        nn.Flatten(),  # -> (B, slices*patterns)
-                    ),
-                    nn.Sequential(
-                        WindowedApply(
-                            window_len=pattern_subfeature_width,
-                            step=pattern_subfeature_stride,
-                            # -> (B, slices, pattern_subfeature_width)
-                            f=StdDev(),  # -> (B, slices)
-                        ),  # -> (B, W, slices)
-                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
-                    ),
-                    nn.Sequential(
-                        WindowedApply(
-                            window_len=pattern_subfeature_width,
-                            step=pattern_subfeature_stride,
-                            # -> (B, slices, pattern_subfeature_width)
-                            f=Max(),  # -> (B, slices)
-                        ),  # -> (B, W, slices)
-                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
-                    ),
-                ),
-                nn.Linear(
-                    slices * patterns + 2 * slices, 2048
-                ),  # TODO: mb bias = False
-                nn.ReLU(),
-                nn.Linear(2048, E),  # TODO: mb bias = False
-            ),
-        )  # -> (B, W, E), S=W
-
-        self.predict = nn.Sequential(
-            nn.Linear(self.frames_per_window * 20 + E, 1024),  # TODO: mb bias = False
-            nn.ReLU(),
-            nn.Linear(1024, 20),  # TODO: mb bias = False
-        )
-
-        self.filter = WeightedMean(self.frames_per_window + 1)
-
-
-class DynamicSliceMultifeatured26Big_nbias(_Base):
-    def __init__(self):
-        super().__init__()
-
-        slices = 256
-        patterns = 128
-        pattern_subfeature_windows = 13  # TODO: mb separate for subfeatures
-        pattern_subfeature_width = 10
-        pattern_subfeature_stride = 5
-        slice_width = (
-            pattern_subfeature_width
-            + (pattern_subfeature_windows - 1) * pattern_subfeature_stride
-        )
-        E = 64  # emg feature size
-
-        self.channels = 16
-        self.emg_samples_per_frame = 32
-        self.frames_per_window = 8
-
-        self.hm = load_default_hand_model()
-
-        self.emg_window_length = self.emg_samples_per_frame * self.frames_per_window
-
-        # T = total_seq_length + S*emg_samples_per_frame
-        # C = channels
-
-        # separate windows per prediction if feed a sequence for more than one prediction
-        self.emg_feature_extract = WindowedApply(  # <- (B, C, T)
-            window_len=self.emg_window_length,
-            step=self.emg_samples_per_frame,
-            f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.ZeroPad1d(
-                    slice_width // 2
-                ),  # happens to be not needed, mb remove later
-                ExtractLearnableSlices(
-                    n=slices, width=slice_width
-                ),  # -> (B, slices, slice_width)
-                Parallel(
-                    nn.Sequential(
-                        LearnablePatternSimilarity(
-                            n=patterns, width=slice_width
-                        ),  # -> (B, slices, patterns)
-                        nn.Flatten(),  # -> (B, slices*patterns)
-                    ),
-                    nn.Sequential(
-                        WindowedApply(
-                            window_len=pattern_subfeature_width,
-                            step=pattern_subfeature_stride,
-                            # -> (B, slices, pattern_subfeature_width)
-                            f=StdDev(),  # -> (B, slices)
-                        ),  # -> (B, W, slices)
-                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
-                    ),
-                    nn.Sequential(
-                        WindowedApply(
-                            window_len=pattern_subfeature_width,
-                            step=pattern_subfeature_stride,
-                            # -> (B, slices, pattern_subfeature_width)
-                            f=Max(),  # -> (B, slices)
-                        ),  # -> (B, W, slices)
-                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
-                    ),
-                ),
-                nn.Linear(slices * patterns + 2 * slices, 2048, bias=False),
                 nn.ReLU(),
                 nn.Linear(2048, E),  # TODO: mb bias = False
             ),
