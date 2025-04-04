@@ -7,15 +7,10 @@ import pytorch_lightning as pl
 from .util import handmodel2device
 from .modules import (
     ExtractLearnableSlices,
-    LearnablePatternCosSimilarity,
-    LearnablePatternDot,
     LearnablePatternSimilarity,
-    LearnablePatternUnnormSimilarity,
     Max,
-    Mean,
     Parallel,
     StdDev,
-    Variance,
     WindowedApply,
     WeightedMean,
 )
@@ -155,15 +150,19 @@ class _Base(Model):
         return loss
 
 
-class _BaseMultiF(_Base):
-    """DynamicSlice21BigMultifeatured"""
-
-    def __init__(self, sim):
+class DynamicSliceMultifeatured22Big(_Base):
+    def __init__(self):
         super().__init__()
 
         slices = 256
         patterns = 128
-        slice_width = 33
+        pattern_subfeature_windows = 13  # TODO: mb separate for subfeatures
+        pattern_subfeature_width = 10
+        pattern_subfeature_stride = 5
+        slice_width = (
+            pattern_subfeature_width
+            + (pattern_subfeature_windows - 1) * pattern_subfeature_stride
+        )
         E = 64  # emg feature size
 
         self.channels = 16
@@ -190,89 +189,43 @@ class _BaseMultiF(_Base):
                 ),  # -> (B, slices, slice_width)
                 Parallel(
                     nn.Sequential(
-                        sim(n=patterns, width=slice_width),  # -> (B, slices, patterns)
+                        LearnablePatternSimilarity(
+                            n=patterns, width=slice_width
+                        ),  # -> (B, slices, patterns)
                         nn.Flatten(),  # -> (B, slices*patterns)
+                        nn.ReLU(),
                     ),
-                    Variance(),  # -> (B, slices)
-                    Mean(),  # -> (B, slices)
-                    Max(),  # -> (B, slices)
-                    StdDev(),  # -> (B, slices)
+                    nn.Sequential(
+                        WindowedApply(
+                            window_len=pattern_subfeature_width,
+                            step=pattern_subfeature_stride,
+                            # -> (B, slices, pattern_subfeature_width)
+                            f=StdDev(),  # -> (B, slices)
+                        ),  # -> (B, W, slices)
+                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
+                    ),
+                    nn.Sequential(
+                        WindowedApply(
+                            window_len=pattern_subfeature_width,
+                            step=pattern_subfeature_stride,
+                            # -> (B, slices, pattern_subfeature_width)
+                            f=Max(),  # -> (B, slices)
+                        ),  # -> (B, W, slices)
+                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
+                    ),
                 ),
-                nn.Linear(slices * patterns + 4 * slices, 1024, bias=False),
+                nn.Linear(
+                    slices * patterns + 2 * slices, 2048
+                ),  # TODO: mb bias = False
                 nn.ReLU(),
-                nn.Linear(1024, E),
+                nn.Linear(2048, E),  # TODO: mb bias = False
             ),
         )  # -> (B, W, E), S=W
 
         self.predict = nn.Sequential(
-            nn.Linear(self.frames_per_window * 20 + E, 512),
+            nn.Linear(self.frames_per_window * 20 + E, 1024),  # TODO: mb bias = False
             nn.ReLU(),
-            nn.Linear(512, 20),
-        )
-
-        self.filter = WeightedMean(self.frames_per_window + 1)
-
-
-class cos(_BaseMultiF):
-    def __init__(self):
-        super().__init__(LearnablePatternCosSimilarity)
-
-
-class corr(_BaseMultiF):
-    def __init__(self):
-        super().__init__(LearnablePatternSimilarity)
-
-
-class unnorm(_BaseMultiF):
-    def __init__(self):
-        super().__init__(LearnablePatternUnnormSimilarity)
-
-
-class _DynamicSlice19_big(_Base):
-    def __init__(self):
-        super().__init__()
-
-        slices = 256
-        patterns = 128
-        slice_width = 65
-        E = 64  # emg feature size
-
-        self.channels = 16
-        self.emg_samples_per_frame = 32
-        self.frames_per_window = 8
-
-        self.hm = load_default_hand_model()
-
-        self.emg_window_length = self.emg_samples_per_frame * self.frames_per_window
-
-        # T = total_seq_length + S*emg_samples_per_frame
-        # C = channels
-
-        # separate windows per prediction if feed a sequence for more than one prediction
-        self.emg_feature_extract = WindowedApply(  # <- (B, C, T)
-            window_len=self.emg_window_length,
-            step=self.emg_samples_per_frame,
-            f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.ZeroPad1d(
-                    slice_width // 2
-                ),  # happens to be not needed, mb remove later
-                ExtractLearnableSlices(
-                    n=slices, width=slice_width
-                ),  # -> (B, slices, slice_width)
-                LearnablePatternCosSimilarity(
-                    n=patterns, width=slice_width
-                ),  # -> (B, slices, patterns)
-                nn.Flatten(),
-                nn.Linear(slices * patterns, 512, bias=False),
-                nn.ReLU(),
-                nn.Linear(512, E),
-            ),
-        )  # -> (B, W, E), S=W
-
-        self.predict = nn.Sequential(
-            nn.Linear(self.frames_per_window * 20 + E, 512),
-            nn.ReLU(),
-            nn.Linear(512, 20),
+            nn.Linear(1024, 20),  # TODO: mb bias = False
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
