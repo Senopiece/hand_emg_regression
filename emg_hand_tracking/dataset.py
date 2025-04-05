@@ -75,8 +75,11 @@ class emg2poseInMemSessionSlice(Dataset):
 
             try:
                 count = (end - start - emg_window_size) // step
-                assert count > 0
-                self.items = [load_item(idx) for idx in range(count)]
+                assert count >= 0
+                if count == 0:
+                    self.items = [load_item(0)]
+                else:
+                    self.items = [load_item(idx) for idx in range(count)]
             except Exception as e:
                 raise Exception(f"Errored in {h5_path}") from e
 
