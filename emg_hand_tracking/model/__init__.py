@@ -77,7 +77,7 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-5)
+        return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
 class _Base(Model):
@@ -150,7 +150,7 @@ class _Base(Model):
         return loss
 
 
-class V35(_Base):
+class V35_lr4(_Base):
     def __init__(self):
         super().__init__()
 
