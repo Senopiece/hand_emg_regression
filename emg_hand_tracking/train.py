@@ -30,7 +30,7 @@ def run_single(
             dataset_path,
             train_window=100,
             val_window=100,
-            step=model.emg_window_length,
+            step=10 * model.emg_window_length,
         ),
         emg_samples_per_frame=model.emg_samples_per_frame,
         batch_size=64,
