@@ -28,8 +28,8 @@ def run_single(
     data_module = DataModule(
         h5_slices=emg2pose_slices(
             dataset_path,
-            train_window=12,
-            val_window=10,
+            train_window=100,
+            val_window=100,
             step=model.emg_window_length,
         ),
         emg_samples_per_frame=model.emg_samples_per_frame,
