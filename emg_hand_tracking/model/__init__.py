@@ -84,7 +84,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V40_accel_vel_pred_lin(Model):
+class V41(Model):
     def __init__(self):
         super().__init__()
 
@@ -99,11 +99,15 @@ class V40_accel_vel_pred_lin(Model):
             pattern_subfeature_width
             + (pattern_subfeature_windows - 1) * pattern_subfeature_stride
         )
-        E = 64  # emg feature size
 
         self.channels = 16
         self.emg_samples_per_frame = 32
         self.frames_per_window = 8
+        self.pos_vel_acc_datasize = (
+            self.frames_per_window * 20
+            + (self.frames_per_window - 1) * 20
+            + (self.frames_per_window - 2) * 20
+        )
 
         self.hm = load_default_hand_model()
 
@@ -150,21 +154,34 @@ class V40_accel_vel_pred_lin(Model):
                         WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
                     ),
                 ),
-                nn.Linear(
-                    slices * patterns + 2 * slices,
-                    2048,
-                ),
-                nn.ReLU(),
-                nn.Linear(2048, E),
             ),
-        )  # -> (B, W, E), S=W
+        )  # -> (B, W, slices * patterns + 2 * slices), S=W
 
-        self.predict = nn.Linear(
-            self.frames_per_window * 20
-            + (self.frames_per_window - 1) * 20
-            + (self.frames_per_window - 2) * 20
-            + E,
-            20,
+        self.synapse_feature_extract = nn.Sequential(
+            nn.Linear(
+                slices * patterns + 2 * slices + self.pos_vel_acc_datasize,
+                2048,
+            ),
+            nn.ReLU(),
+            nn.Linear(2048, 2048),
+        )
+
+        self.muscle_feature_extract = nn.Sequential(
+            nn.Linear(
+                2048 + self.pos_vel_acc_datasize,
+                64,
+            ),
+            nn.ReLU(),
+            nn.Linear(64, 64),
+        )
+
+        self.predict = nn.Sequential(
+            nn.Linear(
+                64 + self.pos_vel_acc_datasize,
+                1024,
+            ),
+            nn.ReLU(),
+            nn.Linear(1024, 20),
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
@@ -187,23 +204,46 @@ class V40_accel_vel_pred_lin(Model):
             # (B, (frames_per_window-2) * 20)
             initial_poses_accels_flat = initial_poses_accels.flatten(start_dim=1)
 
-            # Concatenate the EMG and joint context features.
-            # (B, frames_per_window * 20 + E)
-            combined = torch.cat(
+            pos_vel_acc = torch.cat(
                 [
                     initial_poses_flat,
                     initial_poses_vels_flat,
                     initial_poses_accels_flat,
-                    emg_features,
                 ],
                 dim=1,
             )
-            pos_pred = self.predict(combined)  # (B, 20)
 
-            # Update prediction with filter
-            # (B, 20)
-            all_poses = torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
-            pos_pred_update = self.filter(all_poses)
+            # Run through chain of predictions
+            synapse_f = self.synapse_feature_extract(
+                torch.cat(
+                    [
+                        emg_features,
+                        pos_vel_acc,
+                    ],
+                    dim=1,
+                )
+            )
+            muscle_f = self.muscle_feature_extract(
+                torch.cat(
+                    [
+                        synapse_f,
+                        pos_vel_acc,
+                    ],
+                    dim=1,
+                )
+            )
+            pos_pred = self.predict(
+                torch.cat(
+                    [
+                        muscle_f,
+                        pos_vel_acc,
+                    ],
+                    dim=1,
+                )
+            )
+            pos_pred_update = self.filter(
+                torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
+            )
 
             outputs.append(pos_pred_update)
 
