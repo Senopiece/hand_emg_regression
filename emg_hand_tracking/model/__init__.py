@@ -165,12 +165,19 @@ class V41(Model):
             nn.ReLU(),
         )
 
-        self.predict = nn.Linear(
+        self.muscle_feature_extract = nn.Linear(
             2048 + self.pos_vel_acc_datasize,
-            20,
+            64,
         )
 
-        self.filter = WeightedMean(self.frames_per_window + 1)
+        self.predict = nn.Sequential(
+            nn.Linear(
+                64 + self.pos_vel_acc_datasize,
+                1024,
+            ),
+            nn.ReLU(),
+            nn.Linear(1024, 20 + self.frames_per_window + 1),
+        )
 
     def _forward(self, emg, initial_poses):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
@@ -209,7 +216,7 @@ class V41(Model):
                     dim=1,
                 )
             )
-            pos_pred = self.predict(
+            muscle_f = self.muscle_feature_extract(
                 torch.cat(
                     [
                         synapse_f,
@@ -218,8 +225,25 @@ class V41(Model):
                     dim=1,
                 )
             )
-            pos_pred_update = self.filter(
-                torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
+            pos_pred_and_weights = self.predict(
+                torch.cat(
+                    [
+                        muscle_f,
+                        pos_vel_acc,
+                    ],
+                    dim=1,
+                )
+            )
+            pos_pred, weights = (
+                pos_pred_and_weights[:, :20],
+                pos_pred_and_weights[:, 20:],
+            )
+            weights = torch.sigmoid(weights)
+            weights = weights / weights.sum(dim=1, keepdim=True)  # Normalize weights
+            pos_pred_update = torch.einsum(
+                "bi,bij->bj",
+                weights,
+                torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1),
             )
 
             outputs.append(pos_pred_update)
