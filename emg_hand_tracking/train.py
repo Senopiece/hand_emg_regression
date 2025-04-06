@@ -34,9 +34,9 @@ def run_single(
     data_module = DataModule(
         h5_slices=emg2pose_slices(
             dataset_path,
-            train_window=100,
+            train_window=16,
             val_window=100,
-            step=10 * model.emg_window_length,
+            step=model.emg_window_length,
         ),
         emg_samples_per_frame=model.emg_samples_per_frame,
         batch_size=64,
@@ -51,6 +51,7 @@ def run_single(
         logger=WandbLogger(
             project="emg-hand-regression",
             version=model_name
+            + "-train16"
             + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
         ),
         callbacks=[
