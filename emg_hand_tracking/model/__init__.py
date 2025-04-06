@@ -56,6 +56,10 @@ class Model(pl.LightningModule):
         return cls._impls[name]()
 
     @classmethod
+    def construct_from_checkpoint(cls, name, ckpt):
+        return cls._impls[name].load_from_checkpoint(ckpt)
+
+    @classmethod
     def impls(cls):
         return cls._impls.keys()
 

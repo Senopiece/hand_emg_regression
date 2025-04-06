@@ -81,7 +81,7 @@ class emg2poseInMemSessionSlice(Dataset):
                 else:
                     self.items = [load_item(idx) for idx in range(count)]
             except Exception as e:
-                raise Exception(f"Errored in {h5_path}") from e
+                raise Exception(f"Errored in {h5_path}: {start}-{end}") from e
 
     def __len__(self):
         return len(self.items)
@@ -152,42 +152,57 @@ def emg2pose_slices(
     val_window: int,  # in frames
     step: int,  # in emg
 ):
+    args = {
+        "train_window": train_window,
+        "val_window": val_window,
+        "step": step,
+    }
     d = {
         "train": [
-            (1, 23000, 38000, step, train_window),
-            (1, 100000, 120000, step, train_window),
-            (2, 1000, 16000, step, train_window),
-            (2, 16500, 50000, step, train_window),
-            (2, 64000, 118000, step, train_window),
-            (3, 1100, 16000, step, train_window),
-            (4, 1600, 11900, step, train_window),
-            (4, 20000, 32400, step, train_window),
-            (5, 12000, 35000, step, train_window),
-            (5, 39000, 50000, step, train_window),
-            (5, 68000, 111000, step, train_window),
-            (6, 1000, 16000, step, train_window),
-            (6, 31000, 105000, step, train_window),
-            (6, 107000, 132000, step, train_window),
-            (7, 1000, 49000, step, train_window),
-            (7, 86000, 135706, step, train_window),
-            (8, 0, 133000, step, train_window),
-            (10, 101000, 166715, step, train_window),
-            (11, 10000, 35000, step, train_window),
-            (12, 11000, 30000, step, train_window),
-            (12, 35000, 39000, step, train_window),
+            (1, 23000, 38000),
+            (1, 45000, 60000),
+            (1, 100000, 116000),
+            (2, 1000, 16000),
+            (2, 16500, 50000),
+            (2, 64000, 118000),
+            (2, 120000, 124000),
+            (3, 1100, 16000),
+            (3, 51000, 59000),
+            (4, 1600, 11900),
+            (4, 20000, 32400),
+            (4, 101000, 120000),
+            (5, 12000, 35000),
+            (5, 39000, 50000),
+            (5, 68000, 111000),
+            (5, 120000, 126000),
+            (6, 1000, 16000),
+            (6, 31000, 105000),
+            (6, 107000, 132000),
+            (6, 135000, 153000),
+            (7, 1000, 49000),
+            (7, 50000, 85000),
+            (7, 86000, 132000),
+            (8, 0, 133000),
+            (8, 135000, 145000),
+            (10, 0, 35000),
+            (10, 101000, 163000),
+            (11, 10000, 35000),
+            (11, 55000, 71000),
+            (12, 0, 9000),
+            (12, 11000, 30000),
         ],
         "val": [
-            (1, 45000, 60000, step, val_window),
-            (2, 120000, 128000, step, val_window),
-            (3, 51000, 62966, step, val_window),
-            (4, 101000, 123667, step, val_window),
-            (5, 120000, 130000, step, val_window),
-            (6, 135000, 156754, step, val_window),
-            (7, 50000, 85000, step, val_window),
-            (8, 135000, 148923, step, val_window),
-            (10, 0, 35000, step, val_window),
-            (11, 55000, 75000, step, val_window),
-            (12, 0, 9000, step, val_window),
+            (1, 116000, 120000),
+            (2, 124000, 128000),
+            (3, 59000, 62966),
+            (4, 120000, 123667),
+            (5, 126000, 130000),
+            (6, 153000, 156754),
+            (7, 132000, 135706),
+            (8, 145000, 148923),
+            (10, 163000, 166715),
+            (11, 51000, 75000),
+            (12, 35000, 39000),
         ],
     }
     res = {}
@@ -197,6 +212,8 @@ def emg2pose_slices(
                 lambda e: (
                     f"{base_path}/2022-04-07-1649318400-8125c-cv-emg-pose-train@2-recording-{e[0]}_left.hdf5",
                     *e[1:],
+                    args["step"],
+                    args[f"{k}_window"],
                 ),
                 v,
             )

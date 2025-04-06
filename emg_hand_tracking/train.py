@@ -21,8 +21,13 @@ def run_single(
 ):
     torch.set_float32_matmul_precision("medium")
 
-    print(f"Loading model {model_name}...")
-    model = Model.construct(model_name)
+    ckpt_path = f"./checkpoints/{model_name}.ckpt"
+    if cont and os.path.exists(ckpt_path):
+        print(f"Loading model {model_name} from {ckpt_path}...")
+        model = Model.construct_from_checkpoint(model_name, ckpt_path)
+    else:
+        print(f"Initializing {model_name}...")
+        model = Model.construct(model_name)
 
     print("Loading dataset...")
     data_module = DataModule(
@@ -64,14 +69,9 @@ def run_single(
         ],
     )
 
-    ckpt_path = f"./checkpoints/{model_name}.ckpt"
-    if not cont or not os.path.exists(ckpt_path):
-        ckpt_path = None
-
     trainer.fit(
         model,
         datamodule=data_module,
-        ckpt_path=ckpt_path,
     )
 
 
