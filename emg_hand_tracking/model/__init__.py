@@ -84,7 +84,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V41(Model):
+class V41_lin_pred(Model):
     def __init__(self):
         super().__init__()
 
@@ -175,13 +175,9 @@ class V41(Model):
             nn.Linear(64, 64),
         )
 
-        self.predict = nn.Sequential(
-            nn.Linear(
-                64 + self.pos_vel_acc_datasize,
-                1024,
-            ),
-            nn.ReLU(),
-            nn.Linear(1024, 20),
+        self.predict = nn.Linear(
+            64 + self.pos_vel_acc_datasize,
+            20,
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
