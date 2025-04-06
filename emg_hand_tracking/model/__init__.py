@@ -84,7 +84,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V40_accel_vel_pred(Model):
+class V40_accel_vel_pred_lin(Model):
     def __init__(self):
         super().__init__()
 
@@ -159,17 +159,12 @@ class V40_accel_vel_pred(Model):
             ),
         )  # -> (B, W, E), S=W
 
-        # TODO: try single linear
-        self.predict = nn.Sequential(
-            nn.Linear(
-                self.frames_per_window * 20
-                + (self.frames_per_window - 1) * 20
-                + (self.frames_per_window - 2) * 20
-                + E,
-                1024,
-            ),
-            nn.ReLU(),
-            nn.Linear(1024, 20),
+        self.predict = nn.Linear(
+            self.frames_per_window * 20
+            + (self.frames_per_window - 1) * 20
+            + (self.frames_per_window - 2) * 20
+            + E,
+            20,
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
