@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
+from datetime import timezone, datetime
 import torch
 
 from .dataset import DataModule, emg2pose_slices
@@ -38,7 +39,7 @@ def run_single(
             step=10 * model.emg_window_length,
         ),
         emg_samples_per_frame=model.emg_samples_per_frame,
-        batch_size=64,
+        batch_size=32,
     )
 
     print("Preparing trainer...")
@@ -49,7 +50,8 @@ def run_single(
         enable_progress_bar=False,
         logger=WandbLogger(
             project="emg-hand-regression",
-            version=model_name,
+            version=model_name
+            + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
         ),
         callbacks=[
             ModelCheckpoint(
@@ -63,7 +65,7 @@ def run_single(
             ),
             EarlyStopping(
                 monitor="val_loss",
-                patience=10,
+                patience=50,
                 mode="min",
             ),
         ],
