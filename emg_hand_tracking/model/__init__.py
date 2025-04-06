@@ -84,7 +84,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V41(Model):
+class V42(Model):
     def __init__(self):
         super().__init__()
 
@@ -176,8 +176,10 @@ class V41(Model):
                 1024,
             ),
             nn.ReLU(),
-            nn.Linear(1024, 20 + self.frames_per_window + 1),
+            nn.Linear(1024, 20),
         )
+
+        self.filter = WeightedMean(self.frames_per_window + 1)
 
     def _forward(self, emg, initial_poses):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
@@ -225,7 +227,7 @@ class V41(Model):
                     dim=1,
                 )
             )
-            pos_pred_and_weights = self.predict(
+            pos_pred = self.predict(
                 torch.cat(
                     [
                         muscle_f,
@@ -234,16 +236,8 @@ class V41(Model):
                     dim=1,
                 )
             )
-            pos_pred, weights = (
-                pos_pred_and_weights[:, :20],
-                pos_pred_and_weights[:, 20:],
-            )
-            weights = torch.sigmoid(weights)
-            weights = weights / weights.sum(dim=1, keepdim=True)  # Normalize weights
-            pos_pred_update = torch.einsum(
-                "bi,bij->bj",
-                weights,
-                torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1),
+            pos_pred_update = self.filter(
+                torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
             )
 
             outputs.append(pos_pred_update)
@@ -269,7 +263,7 @@ class V41(Model):
         # (B, S=frames_per_window, 20)
         initial_poses = poses[:, : self.frames_per_window, :]
 
-        # ground truth (B, 20, S=full-frames_per_window)
+        # Ground truth (B, 20, S=full-frames_per_window)
         y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
 
         x = {"emg": emg, "initial_poses": initial_poses}
@@ -286,6 +280,17 @@ class V41(Model):
         loss = loss_per_sequence.mean()  # scalar
 
         self.log(f"{name}_lm_err_mm", loss.sqrt())
+
+        for _ in range(2):
+            # Differentiate
+            landmarks_pred = landmarks_pred.diff(dim=1)  # (B, S, L, 3)
+            landmarks_gt = landmarks_gt.diff(dim=1)  # (B, S, L, 3)
+
+            sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
+            loss_per_lmk = sq_delta.mean(dim=-1)  # (B, S, L)
+            loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
+            loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
+            loss += loss_per_sequence.mean()  # scalar
 
         # Add L1 regularization
         l1_lambda = 1e-5
