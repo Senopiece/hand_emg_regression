@@ -163,16 +163,11 @@ class V41(Model):
                 2048,
             ),
             nn.ReLU(),
-            nn.Linear(2048, 2048),
         )
 
-        self.muscle_feature_extract = nn.Sequential(
-            nn.Linear(
-                2048 + self.pos_vel_acc_datasize,
-                64,
-            ),
-            nn.ReLU(),
-            nn.Linear(64, 64),
+        self.muscle_feature_extract = nn.Linear(
+            2048 + self.pos_vel_acc_datasize,
+            64,
         )
 
         self.predict = nn.Sequential(
