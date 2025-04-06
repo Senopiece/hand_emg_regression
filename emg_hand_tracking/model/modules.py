@@ -85,6 +85,7 @@ class WeightedMean(nn.Module):
     @property
     def normalized_weights(self):
         weights = torch.cat([self.k, self.l.unsqueeze(0)])
+        weights = torch.sigmoid(weights)
         return weights / weights.sum()
 
     def forward(self, x: Tensor) -> Tensor:

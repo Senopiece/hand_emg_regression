@@ -154,7 +154,7 @@ class _Base(Model):
         return loss
 
 
-class V38(_Base):
+class V39_sigm_wm(_Base):
     def __init__(self):
         super().__init__()
 
