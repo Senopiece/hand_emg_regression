@@ -65,7 +65,7 @@ def run_single(
             ),
             EarlyStopping(
                 monitor="val_loss",
-                patience=50,
+                patience=10,
                 mode="min",
             ),
         ],
