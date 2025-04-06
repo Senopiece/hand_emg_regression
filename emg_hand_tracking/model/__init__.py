@@ -154,7 +154,7 @@ class _Base(Model):
         return loss
 
 
-class V37_early_stop(_Base):
+class V38(_Base):
     def __init__(self):
         super().__init__()
 
