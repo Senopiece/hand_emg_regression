@@ -84,77 +84,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class _Base(Model):
-    def _forward(self, emg, initial_poses):
-        emg = emg.permute(0, 2, 1)  # (B, T, C)
-        windows = self.emg_feature_extract(emg).permute(1, 0, 2)  # (W, B, E)
-
-        outputs = []
-        for emg_features in windows:
-            # (B, frames_per_window * 20)
-            initial_poses_flat = initial_poses.flatten(start_dim=1)
-
-            # Concatenate the EMG and joint context features.
-            # (B, frames_per_window * 20 + E)
-            combined = torch.cat([initial_poses_flat, emg_features], dim=1)
-            pos_pred = self.predict(combined)  # (B, 20)
-
-            # Update prediction with filter
-            # (B, 20)
-            all_poses = torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
-            pos_pred_update = self.filter(all_poses)
-
-            outputs.append(pos_pred_update)
-
-            # Update joint context: remove the oldest frame (along the last dimension)
-            # and append the new prediction.
-            # maintain initial_poses shape (B, frames_per_window, 20)
-            initial_poses = torch.cat(
-                [initial_poses[:, 1:, :], pos_pred_update.unsqueeze(1)],
-                dim=1,
-            )
-
-        # Stack all predictions along a new time dimension.
-        # Final output shape: (B, S, 20)
-        return torch.stack(outputs, dim=1)
-
-    def _step(self, name: str, batch):
-        emg = batch["emg"]
-        poses = batch["poses"]
-
-        self.hm = handmodel2device(self.hm, self.device)
-
-        # (B, S=frames_per_window, 20)
-        initial_poses = poses[:, : self.frames_per_window, :]
-
-        # ground truth (B, 20, S=full-frames_per_window)
-        y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
-
-        x = {"emg": emg, "initial_poses": initial_poses}
-        y_hat = self(x).permute(0, 2, 1)  # (B, 20, S=full-frames_per_window)
-
-        # Compute forward kinematics for predicted and ground truth poses.
-        landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
-        landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
-
-        sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        loss_per_lmk = sq_delta.mean(dim=-1)  # (B, S, L)
-        loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
-        loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
-        loss = loss_per_sequence.mean()  # scalar
-
-        self.log(f"{name}_lm_err_mm", loss.sqrt())
-
-        # Add L1 regularization
-        l1_lambda = 1e-5
-        l1_loss = sum(param.abs().sum() for param in self.parameters())
-        loss += l1_lambda * l1_loss
-
-        self.log(f"{name}_loss", loss)
-        return loss
-
-
-class V39_sigm_wm(_Base):
+class V40_accel_vel_pred(Model):
     def __init__(self):
         super().__init__()
 
@@ -223,17 +153,108 @@ class V39_sigm_wm(_Base):
                 nn.Linear(
                     slices * patterns + 2 * slices,
                     2048,
-                ),  # TODO: mb bias = False
+                ),
                 nn.ReLU(),
-                nn.Linear(2048, E),  # TODO: mb bias = False
+                nn.Linear(2048, E),
             ),
         )  # -> (B, W, E), S=W
 
-        # TODO: try single linear, add vel/accel input
+        # TODO: try single linear
         self.predict = nn.Sequential(
-            nn.Linear(self.frames_per_window * 20 + E, 1024),  # TODO: mb bias = False
+            nn.Linear(
+                self.frames_per_window * 20
+                + (self.frames_per_window - 1) * 20
+                + (self.frames_per_window - 2) * 20
+                + E,
+                1024,
+            ),
             nn.ReLU(),
-            nn.Linear(1024, 20),  # TODO: mb bias = False
+            nn.Linear(1024, 20),
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
+
+    def _forward(self, emg, initial_poses):
+        emg = emg.permute(0, 2, 1)  # (B, T, C)
+        windows = self.emg_feature_extract(emg).permute(1, 0, 2)  # (W, B, E)
+
+        outputs = []
+        for emg_features in windows:
+            # (B, frames_per_window-1, 20)
+            initial_poses_vels = initial_poses.diff(dim=1)
+            # (B, frames_per_window-2, 20)
+            initial_poses_accels = initial_poses_vels.diff(dim=1)
+
+            # (B, frames_per_window * 20)
+            initial_poses_flat = initial_poses.flatten(start_dim=1)
+            # (B, (frames_per_window-1) * 20)
+            initial_poses_vels_flat = initial_poses_vels.flatten(start_dim=1)
+            # (B, (frames_per_window-2) * 20)
+            initial_poses_accels_flat = initial_poses_accels.flatten(start_dim=1)
+
+            # Concatenate the EMG and joint context features.
+            # (B, frames_per_window * 20 + E)
+            combined = torch.cat(
+                [
+                    initial_poses_flat,
+                    initial_poses_vels_flat,
+                    initial_poses_accels_flat,
+                    emg_features,
+                ],
+                dim=1,
+            )
+            pos_pred = self.predict(combined)  # (B, 20)
+
+            # Update prediction with filter
+            # (B, 20)
+            all_poses = torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
+            pos_pred_update = self.filter(all_poses)
+
+            outputs.append(pos_pred_update)
+
+            # Update joint context: remove the oldest frame (along the last dimension)
+            # and append the new prediction.
+            # maintain initial_poses shape (B, frames_per_window, 20)
+            initial_poses = torch.cat(
+                [initial_poses[:, 1:, :], pos_pred_update.unsqueeze(1)],
+                dim=1,
+            )
+
+        # Stack all predictions along a new time dimension.
+        # Final output shape: (B, S, 20)
+        return torch.stack(outputs, dim=1)
+
+    def _step(self, name: str, batch):
+        emg = batch["emg"]
+        poses = batch["poses"]
+
+        self.hm = handmodel2device(self.hm, self.device)
+
+        # (B, S=frames_per_window, 20)
+        initial_poses = poses[:, : self.frames_per_window, :]
+
+        # ground truth (B, 20, S=full-frames_per_window)
+        y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
+
+        x = {"emg": emg, "initial_poses": initial_poses}
+        y_hat = self(x).permute(0, 2, 1)  # (B, 20, S=full-frames_per_window)
+
+        # Compute forward kinematics for predicted and ground truth poses.
+        landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
+        landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
+
+        sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
+        loss_per_lmk = sq_delta.mean(dim=-1)  # (B, S, L)
+        loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
+        loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
+        loss = loss_per_sequence.mean()  # scalar
+
+        self.log(f"{name}_lm_err_mm", loss.sqrt())
+
+        # Add L1 regularization
+        l1_lambda = 1e-5
+        l1_loss = sum(param.abs().sum() for param in self.parameters())
+        loss += l1_lambda * l1_loss
+
+        self.log(f"{name}_loss", loss)
+        return loss
