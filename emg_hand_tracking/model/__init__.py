@@ -150,7 +150,7 @@ class _Base(Model):
         return loss
 
 
-class V36_data2(_Base):
+class V37_early_stop(_Base):
     def __init__(self):
         super().__init__()
 
