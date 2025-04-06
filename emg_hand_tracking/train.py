@@ -4,7 +4,6 @@ import signal
 import subprocess
 import sys
 from typing import List
-from dotenv import load_dotenv
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
@@ -153,7 +152,12 @@ def main(
 
 
 if __name__ == "__main__":
-    load_dotenv()
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        print("dotenv module not found. Skipping environment variable loading.")
 
     env_dataset_path = os.getenv("DATASET_PATH")
 
