@@ -39,7 +39,7 @@ def run_single(
             step=model.emg_window_length,
         ),
         emg_samples_per_frame=model.emg_samples_per_frame,
-        batch_size=64,
+        batch_size=128,
     )
 
     print("Preparing trainer...")
