@@ -229,6 +229,7 @@ class V38(_Base):
             ),
         )  # -> (B, W, E), S=W
 
+        # TODO: try single linear, add vel/accel input
         self.predict = nn.Sequential(
             nn.Linear(self.frames_per_window * 20 + E, 1024),  # TODO: mb bias = False
             nn.ReLU(),
