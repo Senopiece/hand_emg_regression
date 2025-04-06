@@ -165,18 +165,9 @@ class V41(Model):
             nn.ReLU(),
         )
 
-        self.muscle_feature_extract = nn.Linear(
+        self.predict = nn.Linear(
             2048 + self.pos_vel_acc_datasize,
-            64,
-        )
-
-        self.predict = nn.Sequential(
-            nn.Linear(
-                64 + self.pos_vel_acc_datasize,
-                1024,
-            ),
-            nn.ReLU(),
-            nn.Linear(1024, 20),
+            20,
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
@@ -218,19 +209,10 @@ class V41(Model):
                     dim=1,
                 )
             )
-            muscle_f = self.muscle_feature_extract(
-                torch.cat(
-                    [
-                        synapse_f,
-                        pos_vel_acc,
-                    ],
-                    dim=1,
-                )
-            )
             pos_pred = self.predict(
                 torch.cat(
                     [
-                        muscle_f,
+                        synapse_f,
                         pos_vel_acc,
                     ],
                     dim=1,
