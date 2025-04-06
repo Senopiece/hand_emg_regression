@@ -274,7 +274,7 @@ class V42(Model):
         landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
 
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        loss_per_lmk = sq_delta.mean(dim=-1)  # (B, S, L)
+        loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
         loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
         loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
         loss = loss_per_sequence.mean()  # scalar
@@ -287,7 +287,7 @@ class V42(Model):
             landmarks_gt = landmarks_gt.diff(dim=1)  # (B, S, L, 3)
 
             sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-            loss_per_lmk = sq_delta.mean(dim=-1)  # (B, S, L)
+            loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
             loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
             loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
             loss += loss_per_sequence.mean()  # scalar
