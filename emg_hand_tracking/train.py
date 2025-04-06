@@ -6,7 +6,7 @@ import sys
 from typing import List
 from dotenv import load_dotenv
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 import torch
 
@@ -55,6 +55,11 @@ def run_single(
                 monitor="val_loss",
                 mode="min",
                 enable_version_counter=False,
+            ),
+            EarlyStopping(
+                monitor="val_loss",
+                patience=10,
+                mode="min",
             ),
         ],
     )
