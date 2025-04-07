@@ -84,7 +84,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V42(Model):
+class V42_sqrt_front(Model):
     def __init__(self):
         super().__init__()
 
@@ -301,49 +301,49 @@ class V42(Model):
         return loss
 
 
-class V42_2(V42):
-    def _step(self, name: str, batch):
-        emg = batch["emg"]
-        poses = batch["poses"]
+# class V42_2(V42):
+#     def _step(self, name: str, batch):
+#         emg = batch["emg"]
+#         poses = batch["poses"]
 
-        self.hm = handmodel2device(self.hm, self.device)
+#         self.hm = handmodel2device(self.hm, self.device)
 
-        # (B, S=frames_per_window, 20)
-        initial_poses = poses[:, : self.frames_per_window, :]
+#         # (B, S=frames_per_window, 20)
+#         initial_poses = poses[:, : self.frames_per_window, :]
 
-        # Ground truth (B, 20, S=full-frames_per_window)
-        y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
+#         # Ground truth (B, 20, S=full-frames_per_window)
+#         y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
 
-        x = {"emg": emg, "initial_poses": initial_poses}
-        y_hat = self(x).permute(0, 2, 1)  # (B, 20, S=full-frames_per_window)
+#         x = {"emg": emg, "initial_poses": initial_poses}
+#         y_hat = self(x).permute(0, 2, 1)  # (B, 20, S=full-frames_per_window)
 
-        # Compute forward kinematics for predicted and ground truth poses.
-        landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
-        landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
+#         # Compute forward kinematics for predicted and ground truth poses.
+#         landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
+#         landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
 
-        # First term is the right error
-        sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
-        loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
-        loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
-        loss = loss_per_sequence.mean().sqrt()  # scalar
+#         # First term is the right error
+#         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
+#         loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
+#         loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
+#         loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
+#         loss = loss_per_sequence.mean().sqrt()  # scalar
 
-        # Add term to follow the movement
-        for _ in range(2):
-            # Differentiate
-            landmarks_pred = landmarks_pred.diff(dim=1)  # (B, S, L, 3)
-            landmarks_gt = landmarks_gt.diff(dim=1)  # (B, S, L, 3)
+#         # Add term to follow the movement
+#         for _ in range(2):
+#             # Differentiate
+#             landmarks_pred = landmarks_pred.diff(dim=1)  # (B, S, L, 3)
+#             landmarks_gt = landmarks_gt.diff(dim=1)  # (B, S, L, 3)
 
-            sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-            loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
-            loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
-            loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
-            loss += loss_per_sequence.mean().sqrt()  # scalar
+#             sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
+#             loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
+#             loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
+#             loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
+#             loss += loss_per_sequence.mean().sqrt()  # scalar
 
-        # Add L1 regularization
-        l1_lambda = 1e-5
-        l1_loss = sum(param.abs().sum() for param in self.parameters())
-        loss += l1_lambda * l1_loss
+#         # Add L1 regularization
+#         l1_lambda = 1e-5
+#         l1_loss = sum(param.abs().sum() for param in self.parameters())
+#         loss += l1_lambda * l1_loss
 
-        self.log(f"{name}_loss", loss)
-        return loss
+#         self.log(f"{name}_loss", loss)
+#         return loss
