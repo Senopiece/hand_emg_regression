@@ -273,14 +273,18 @@ class V42(Model):
         landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
         landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
 
+        # First term is the right error
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
         loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
-        loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
-        loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
-        loss = loss_per_sequence.mean()  # scalar
+        loss_per_prediction = loss_per_lmk.mean(dim=-1) + loss_per_lmk.std(
+            dim=-1
+        )  # (B, S)
+        loss_per_sequence = loss_per_prediction.mean(dim=1) + loss_per_prediction.std(
+            dim=1
+        )  # (B,)
+        loss = loss_per_sequence.mean() + loss_per_sequence.std()  # scalar
 
-        self.log(f"{name}_lm_err_mm", loss.sqrt())
-
+        # Add term to follow the movement
         for _ in range(2):
             # Differentiate
             landmarks_pred = landmarks_pred.diff(dim=1)  # (B, S, L, 3)
@@ -288,9 +292,15 @@ class V42(Model):
 
             sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
             loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
-            loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
-            loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
-            loss += loss_per_sequence.mean()  # scalar
+            loss_per_prediction = loss_per_lmk.mean(dim=-1) + loss_per_lmk.std(
+                dim=-1
+            )  # (B, S)
+            loss_per_sequence = loss_per_prediction.mean(
+                dim=1
+            ) + loss_per_prediction.std(
+                dim=1
+            )  # (B,)
+            loss += loss_per_sequence.mean() + loss_per_sequence.std()  # scalar
 
         # Add L1 regularization
         l1_lambda = 1e-5
