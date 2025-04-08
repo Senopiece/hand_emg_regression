@@ -81,10 +81,10 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-4)
+        return torch.optim.Adam(self.parameters(), lr=1e-5)
 
 
-class V43(Model):
+class V44(Model):
     def __init__(self):
         super().__init__()
 
@@ -101,7 +101,7 @@ class V43(Model):
         )
 
         self.channels = 16
-        self.emg_samples_per_frame = 32  # 60 predictions/sec
+        self.emg_samples_per_frame = 64  # 30 predictions/sec
         self.frames_per_window = 8
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20
