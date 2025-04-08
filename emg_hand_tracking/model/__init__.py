@@ -84,7 +84,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V42_30(Model):
+class V43(Model):
     def __init__(self):
         super().__init__()
 
@@ -101,7 +101,7 @@ class V42_30(Model):
         )
 
         self.channels = 16
-        self.emg_samples_per_frame = 64  # 30 predictions/sec
+        self.emg_samples_per_frame = 32  # 60 predictions/sec
         self.frames_per_window = 8
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20
