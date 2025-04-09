@@ -88,7 +88,7 @@ class Model(pl.LightningModule):
             max_lr=1e-3,
             total_steps=self.trainer.estimated_stepping_batches,  # type: ignore
             pct_start=0.3,
-            anneal_strategy="linear",
+            anneal_strategy="cos",
             cycle_momentum=False,
         )
 
