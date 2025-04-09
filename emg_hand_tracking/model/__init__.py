@@ -84,7 +84,7 @@ class Model(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=1e-4)
 
 
-class V42(Model):
+class V42_consistency_term(Model):
     def __init__(self):
         super().__init__()
 
@@ -280,7 +280,11 @@ class V42(Model):
         loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
         loss = loss_per_sequence.mean()  # scalar
 
-        # Add term to follow the movement
+        # A term for error consistency
+        err_per_lmk = loss_per_lmk.diff(dim=1)  # (B, S-1, L)
+        loss += err_per_lmk.std(dim=-1).mean(dim=-1).mean()
+
+        # A term for differential follow
         for _ in range(2):
             # Differentiate
             landmarks_pred = landmarks_pred.diff(dim=1)  # (B, S, L, 3)
