@@ -95,7 +95,7 @@ class Model(pl.LightningModule):
         return [optimizer], [scheduler_config]
 
 
-class V42(Model):
+class V42Min1(Model):
     def __init__(self):
         super().__init__()
 
