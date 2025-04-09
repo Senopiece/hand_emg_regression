@@ -95,7 +95,7 @@ class Model(pl.LightningModule):
         return [optimizer], [scheduler_config]
 
 
-class V42_mean_lm_err(Model):
+class V42_mean_lm_err_f120(Model):
     def __init__(self):
         super().__init__()
 
