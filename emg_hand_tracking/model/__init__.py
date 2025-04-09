@@ -81,7 +81,23 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        return torch.optim.Adagrad(self.parameters())
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr=1e-3,
+            total_steps=300,
+            pct_start=0.3,
+            anneal_strategy="linear",
+            cycle_momentum=False,
+        )
+
+        scheduler_config = {
+            "scheduler": scheduler,
+            "interval": "step",
+        }
+
+        return [optimizer], [scheduler_config]
 
 
 class V42Min1(Model):
