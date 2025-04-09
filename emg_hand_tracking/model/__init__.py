@@ -95,7 +95,7 @@ class Model(pl.LightningModule):
         return [optimizer], [scheduler_config]
 
 
-class V42_means(Model):
+class V42(Model):
     def __init__(self):
         super().__init__()
 
@@ -112,8 +112,8 @@ class V42_means(Model):
         )
 
         self.channels = 16
-        self.emg_samples_per_frame = 16  # 120 predictions/sec
-        self.frames_per_window = 20
+        self.emg_samples_per_frame = 32  # 60 predictions/sec
+        self.frames_per_window = 10
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20
             + (self.frames_per_window - 1) * 20
