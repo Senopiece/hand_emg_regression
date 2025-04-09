@@ -99,8 +99,8 @@ class V42(Model):
     def __init__(self):
         super().__init__()
 
-        slices = 256
-        patterns = 128
+        slices = 32
+        patterns = 64
 
         pattern_subfeature_windows = 10  # TODO: mb separate for subfeatures
         pattern_subfeature_width = 7
@@ -171,13 +171,13 @@ class V42(Model):
         self.synapse_feature_extract = nn.Sequential(
             nn.Linear(
                 slices * patterns + 2 * slices + self.pos_vel_acc_datasize,
-                2048,
+                256,
             ),
             nn.ReLU(),
         )
 
         self.muscle_feature_extract = nn.Linear(
-            2048 + self.pos_vel_acc_datasize,
+            256 + self.pos_vel_acc_datasize,
             64,
         )
 
