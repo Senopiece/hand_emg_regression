@@ -112,7 +112,7 @@ class V42_mean_lm_err(Model):
         )
 
         self.channels = 16
-        self.emg_samples_per_frame = 32  # 60 predictions/sec
+        self.emg_samples_per_frame = 16  # 120 predictions/sec
         self.frames_per_window = 8
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20
