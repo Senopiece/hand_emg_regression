@@ -81,7 +81,7 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        return torch.optim.Adagrad(self.parameters(), lr=1.0)
+        return torch.optim.Adagrad(self.parameters())
 
 
 class V42Min1(Model):
