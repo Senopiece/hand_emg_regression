@@ -81,8 +81,8 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
-        warmup_steps = 300
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        warmup_steps = 100
         scheduler = torch.optim.lr_scheduler.LambdaLR(
             optimizer,
             lr_lambda=lambda step: min((step + 1) / warmup_steps, 1.0),
@@ -113,7 +113,7 @@ class V42(Model):
 
         self.channels = 16
         self.emg_samples_per_frame = 32  # 60 predictions/sec
-        self.frames_per_window = 10
+        self.frames_per_window = 8
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20
             + (self.frames_per_window - 1) * 20
@@ -285,18 +285,17 @@ class V42(Model):
         landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
 
         # First term is the right error
-        # TODO: try all combinations of mean sequencing
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        loss = 1.0 * sq_delta.sum(dim=-1).mean(dim=-1).mean(dim=-1).mean(dim=-1)
+        loss = 1.0 * sq_delta.sum(dim=-1).mean()
 
         # A term for differential follow (reduces jitter and helps to learn faster)
-        for k in [1.5, 1.0]:
+        for k in [2.0, 1.0]:
             # Differentiate
             landmarks_pred = landmarks_pred.diff(dim=1)  # (B, S, L, 3)
             landmarks_gt = landmarks_gt.diff(dim=1)  # (B, S, L, 3)
 
             sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-            loss += k * sq_delta.sum(dim=-1).mean(dim=-1).mean(dim=-1).mean(dim=-1)
+            loss += k * sq_delta.sum(dim=-1).mean()
 
         # Add L1 regularization
         l1_lambda = 1e-5
