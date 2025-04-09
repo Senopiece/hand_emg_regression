@@ -81,11 +81,11 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
 
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
-            max_lr=1e-3,
+            max_lr=1e-2,
             total_steps=self.trainer.estimated_stepping_batches,  # type: ignore
             pct_start=0.3,
             anneal_strategy="cos",
@@ -100,7 +100,7 @@ class Model(pl.LightningModule):
         return [optimizer], [scheduler_config]
 
 
-class V42Min1(Model):
+class V42(Model):
     def __init__(self):
         super().__init__()
 
@@ -118,7 +118,7 @@ class V42Min1(Model):
 
         self.channels = 16
         self.emg_samples_per_frame = 16  # 120 predictions/sec
-        self.frames_per_window = 16
+        self.frames_per_window = 20
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20
             + (self.frames_per_window - 1) * 20
