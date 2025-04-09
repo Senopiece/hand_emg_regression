@@ -81,10 +81,21 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-4)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        warmup_steps = 300
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lr_lambda=lambda step: min((step + 1) / warmup_steps, 1.0),
+        )
+        scheduler_config = {
+            "scheduler": scheduler,
+            "interval": "step",
+            "frequency": 1,
+        }
+        return [optimizer], [scheduler_config]
 
 
-class V42_consistency_term(Model):
+class V42_warmup(Model):
     def __init__(self):
         super().__init__()
 
@@ -281,8 +292,8 @@ class V42_consistency_term(Model):
         loss = loss_per_sequence.mean()  # scalar
 
         # A term for error consistency
-        err_per_lmk = loss_per_lmk.diff(dim=1)  # (B, S-1, L)
-        loss += err_per_lmk.std(dim=-1).mean(dim=-1).mean()
+        # err_per_lmk = loss_per_lmk.diff(dim=1)  # (B, S-1, L)
+        # loss += err_per_lmk.std(dim=-1).mean(dim=-1).mean()
 
         # A term for differential follow
         for _ in range(2):
