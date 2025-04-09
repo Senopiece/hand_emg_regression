@@ -118,7 +118,7 @@ class V42(Model):
 
         self.channels = 16
         self.emg_samples_per_frame = 16  # 120 predictions/sec
-        self.frames_per_window = 16
+        self.frames_per_window = 20
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20
             + (self.frames_per_window - 1) * 20
