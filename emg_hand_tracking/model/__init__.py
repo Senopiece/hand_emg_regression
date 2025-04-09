@@ -81,7 +81,7 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         warmup_steps = 300
         scheduler = torch.optim.lr_scheduler.LambdaLR(
             optimizer,
@@ -95,7 +95,7 @@ class Model(pl.LightningModule):
         return [optimizer], [scheduler_config]
 
 
-class V42(Model):
+class V42_mean_lm_err(Model):
     def __init__(self):
         super().__init__()
 
@@ -286,10 +286,7 @@ class V42(Model):
 
         # First term is the right error
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
-        loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
-        loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
-        loss = loss_per_sequence.mean()  # scalar
+        loss = sq_delta.sum(dim=-1).mean()
 
         # A term for differential follow
         for _ in range(2):
@@ -298,62 +295,7 @@ class V42(Model):
             landmarks_gt = landmarks_gt.diff(dim=1)  # (B, S, L, 3)
 
             sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-            loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
-            loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
-            loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
-            loss += loss_per_sequence.mean()  # scalar
-
-        # Add L1 regularization
-        l1_lambda = 1e-5
-        l1_loss = sum(param.abs().sum() for param in self.parameters())
-        loss += l1_lambda * l1_loss
-
-        self.log(f"{name}_loss", loss)
-        return loss
-
-
-class err_cons(V42):
-    def _step(self, name: str, batch):
-        emg = batch["emg"]
-        poses = batch["poses"]
-
-        self.hm = handmodel2device(self.hm, self.device)
-
-        # (B, S=frames_per_window, 20)
-        initial_poses = poses[:, : self.frames_per_window, :]
-
-        # Ground truth (B, 20, S=full-frames_per_window)
-        y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
-
-        x = {"emg": emg, "initial_poses": initial_poses}
-        y_hat = self(x).permute(0, 2, 1)  # (B, 20, S=full-frames_per_window)
-
-        # Compute forward kinematics for predicted and ground truth poses.
-        landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
-        landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
-
-        # First term is the right error
-        sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
-        loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
-        loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
-        loss = loss_per_sequence.mean()  # scalar
-
-        # A term for error consistency
-        err_per_lmk = loss_per_lmk.diff(dim=1)  # (B, S-1, L)
-        loss += err_per_lmk.mean(dim=-1).std(dim=-1).mean()
-
-        # A term for differential follow
-        for _ in range(2):
-            # Differentiate
-            landmarks_pred = landmarks_pred.diff(dim=1)  # (B, S, L, 3)
-            landmarks_gt = landmarks_gt.diff(dim=1)  # (B, S, L, 3)
-
-            sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-            loss_per_lmk = sq_delta.sum(dim=-1)  # (B, S, L)
-            loss_per_prediction = loss_per_lmk.mean(dim=-1)  # (B, S)
-            loss_per_sequence = loss_per_prediction.mean(dim=1)  # (B,)
-            loss += loss_per_sequence.mean()  # scalar
+            loss += sq_delta.sum(dim=-1).mean()
 
         # Add L1 regularization
         l1_lambda = 1e-5
