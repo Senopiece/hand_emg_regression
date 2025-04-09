@@ -189,10 +189,10 @@ class V42Min1(Model):
         self.predict = nn.Sequential(
             nn.Linear(
                 64 + self.pos_vel_acc_datasize,
-                1024,
+                128,
             ),
             nn.ReLU(),
-            nn.Linear(1024, 20),
+            nn.Linear(128, 20),
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
