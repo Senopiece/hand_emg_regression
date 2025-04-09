@@ -95,7 +95,7 @@ class Model(pl.LightningModule):
         return [optimizer], [scheduler_config]
 
 
-class V42_warmup2(Model):
+class V42(Model):
     def __init__(self):
         super().__init__()
 
@@ -312,7 +312,7 @@ class V42_warmup2(Model):
         return loss
 
 
-class err_cons(V42_warmup2):
+class err_cons(V42):
     def _step(self, name: str, batch):
         emg = batch["emg"]
         poses = batch["poses"]
