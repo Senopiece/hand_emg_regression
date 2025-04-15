@@ -10,12 +10,13 @@ from pytorch_lightning.loggers import WandbLogger
 from datetime import timezone, datetime
 import torch
 
-from .dataset import DataModule, emg2pose_slices
+from .dataset import DataModule
 from .model import Model
 
 
 def run_single(
     model_name: str,
+    enable_progress_bar: bool,
     dataset_path: str,
     cont: bool,
 ):
@@ -29,24 +30,18 @@ def run_single(
         print(f"Initializing {model_name}...")
         model = Model.construct(model_name)
 
-    print("Loading dataset...")
     data_module = DataModule(
-        h5_slices=emg2pose_slices(
-            dataset_path,
-            train_window=100,
-            val_window=100,
-            step=model.emg_window_length,
-        ),
+        path=dataset_path,
         emg_samples_per_frame=model.emg_samples_per_frame,
+        frames_per_item=100,
         batch_size=64,
     )
 
-    print("Preparing trainer...")
     trainer = Trainer(
         max_epochs=100,
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
-        enable_progress_bar=False,
+        enable_progress_bar=enable_progress_bar,
         logger=WandbLogger(
             project="emg-hand-regression",
             version=model_name
@@ -104,7 +99,8 @@ def run_many(
                 model,
                 "--dataset_path",
                 dataset_path,
-                *(["-c"] if cont else []),
+                "-p",
+                *(["-n"] if not cont else []),
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -133,6 +129,7 @@ def run_many(
 
 def main(
     model_names: List[str],
+    enable_progress_bar: bool,
     dataset_path: str,
     cont: bool,
 ):
@@ -144,7 +141,7 @@ def main(
         model_names = list(Model.impls())
 
     if len(model_names) == 1:
-        run_single(model_names[0], dataset_path, cont)
+        run_single(model_names[0], enable_progress_bar, dataset_path, cont)
     else:
         run_many(model_names, dataset_path, cont)
 
@@ -160,6 +157,9 @@ if __name__ == "__main__":
         print("dotenv module not found. Skipping environment variable loading.")
 
     env_dataset_path = os.getenv("DATASET_PATH")
+
+    if env_dataset_path is None:
+        env_dataset_path = "dataset.zip"
 
     parser = argparse.ArgumentParser(description="Train EMG-to-Pose model")
     parser.add_argument(
@@ -178,10 +178,16 @@ if __name__ == "__main__":
         help="Path to the emg2pose directory (can also be set via the DATASET_PATH environment variable)",
     )
     parser.add_argument(
-        "--cont",
-        "-c",
+        "--new",
+        "-n",
         action="store_true",
-        help="Continue from the last checkpoint",
+        help="Forget previous checkpoint and start from scratch",
+    )
+    parser.add_argument(
+        "--disable_progress_bar",
+        "-p",
+        action="store_true",
+        help="Disable the progress bar, is forcedly disabled for running multiple",
     )
     args = parser.parse_args()
 
@@ -194,6 +200,7 @@ if __name__ == "__main__":
         main(
             model_names=args.model.split(","),
             dataset_path=args.dataset_path,
-            cont=args.cont,
+            cont=not args.new,
+            enable_progress_bar=not args.disable_progress_bar,
         )
     )
