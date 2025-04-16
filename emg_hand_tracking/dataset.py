@@ -1,9 +1,10 @@
+import math
 import zipfile
 import numpy as np
 import torch
 import yaml
 import warnings
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, RandomSampler, SubsetRandomSampler
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, ConcatDataset
 from typing import List, NamedTuple
@@ -152,12 +153,14 @@ class DataModule(LightningDataModule):
         frames_per_item: int,
         emg_samples_per_frame: int = 64,  # frames will be resampled if differs from 64
         batch_size: int = 64,
+        sample_ratio: float = 0.2,
     ):
         super().__init__()
         self.path = path
         self.frames_per_item = frames_per_item
         self.emg_samples_per_frame = emg_samples_per_frame
         self.batch_size = batch_size
+        self.sample_ratio = sample_ratio
 
         assert emg_samples_per_frame <= 64, "EMG samples per frame must be <= 64"
         assert (
@@ -231,17 +234,30 @@ class DataModule(LightningDataModule):
         )
 
     def train_dataloader(self):
+        dataset = self.train_dataset
         return DataLoader(
-            self.train_dataset,
+            dataset,
             batch_size=self.batch_size,
-            shuffle=True,
+            sampler=RandomSampler(
+                dataset,
+                num_samples=math.ceil(len(dataset) * self.sample_ratio),
+                replacement=False,
+            ),
             num_workers=0,
         )
 
     def val_dataloader(self):
+        dataset = self.val_dataset
+
+        # Generate fixed random indices
+        generator = torch.Generator().manual_seed(42)  # Fixed seed for reproducibility
+        n_samples = math.ceil(len(dataset) * self.sample_ratio)
+        indices = torch.randperm(len(dataset), generator=generator)[:n_samples].tolist()
+
         return DataLoader(
-            self.val_dataset,
+            dataset,
             batch_size=self.batch_size,
+            sampler=SubsetRandomSampler(indices),
             shuffle=False,
             num_workers=0,
         )
