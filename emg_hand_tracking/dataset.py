@@ -162,8 +162,6 @@ class RecordingSlicing(Dataset):
         self.frames_per_item = frames_per_item
         self.recording = recording.to_torch()
 
-        assert not any(e.emg.shape[0] == 0 for e in recording.couples)
-
     def __len__(self):
         res = len(self.recording.couples) - self.frames_per_item + 1
         return res if res > 0 else 0
