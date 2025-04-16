@@ -4,14 +4,13 @@ import numpy as np
 import torch
 import yaml
 import warnings
-from torch.utils.data import Dataset, RandomSampler, Sampler, SubsetRandomSampler
+from torch.utils.data import Dataset, Sampler
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, ConcatDataset
 from typing import List, NamedTuple
 from tqdm import tqdm
+from scipy.interpolate import interp1d
 
-# ya, it's actually suitable for upsampling too
-from emg2pose.utils import downsample as resample
 
 # Having multiple workers will actually decrease the performance
 warnings.filterwarnings(
@@ -115,6 +114,23 @@ def load_recordings(filepath: str) -> List[HandEmgRecording]:
             recordings.append(HandEmgRecording(couples=rec, sigma=sigma))
 
     return recordings
+
+
+def resample(array: np.ndarray, native_fs: int, target_fs: int) -> np.ndarray:
+    # Create a time array for the original series
+    t_native = np.arange(array.shape[0]) / native_fs
+
+    # Calculate the number of samples in the resampled series
+    num_samples = int(array.shape[0] * target_fs / native_fs)
+
+    # Create a time array for the resampled series
+    t_target = np.linspace(0, t_native[-1], num_samples)
+
+    # Interpolate the original series at the resampled time points
+    f = interp1d(
+        t_native, array, axis=0, kind="linear", fill_value=np.nan, bounds_error=False
+    )
+    return f(t_target)
 
 
 class RecordingSlicing(Dataset):
