@@ -24,10 +24,12 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
+W = 64
+
 
 class HandEmgTuple(NamedTuple):
     frame: np.ndarray  # (20,), float32 expected
-    emg: np.ndarray  # (64, C), float32 expected
+    emg: np.ndarray  # (W, C), float32 expected
 
 
 class HandEmgRecording(NamedTuple):
@@ -49,7 +51,7 @@ class HandEmgRecording(NamedTuple):
 
 class HandEmgTorchTuple(NamedTuple):
     frame: torch.Tensor  # (20,), float32 expected
-    emg: torch.Tensor  # (64, C), float32 expected
+    emg: torch.Tensor  # (W, C), float32 expected
 
 
 class HandEmgTorchRecording(NamedTuple):
@@ -86,8 +88,8 @@ def load_recordings(filepath: str) -> List[HandEmgRecording]:
             pos = 0
 
             # Calculate the size per sample:
-            # 20 float32 values for frame (20*4 bytes) and 64 * C float32 values for emg.
-            sample_size = 20 * 4 + 64 * C * 4
+            # 20 float32 values for frame (20*4 bytes) and W * C float32 values for emg.
+            sample_size = 20 * 4 + W * C * 4
 
             # Deduce the number of samples T.
             T = (
@@ -100,9 +102,9 @@ def load_recordings(filepath: str) -> List[HandEmgRecording]:
                 frame = np.frombuffer(frame_bytes, dtype=np.float32)
                 pos += 20 * 4
 
-                emg_bytes = data[pos : pos + 64 * C * 4]
-                emg = np.frombuffer(emg_bytes, dtype=np.float32).reshape((64, C))
-                pos += 64 * C * 4
+                emg_bytes = data[pos : pos + W * C * 4]
+                emg = np.frombuffer(emg_bytes, dtype=np.float32).reshape((W, C))
+                pos += W * C * 4
 
                 rec.append(HandEmgTuple(frame=frame, emg=emg))
 
@@ -205,7 +207,7 @@ class DataModule(LightningDataModule):
         self,
         path: str,  # path to the zip file
         frames_per_item: int,
-        emg_samples_per_frame: int = 64,  # frames will be resampled if differs from 64
+        emg_samples_per_frame: int = W,  # frames will be resampled if differs from W
         batch_size: int = 64,
         sample_ratio: float = 0.05,
         train_split: float = 0.7,
@@ -218,10 +220,10 @@ class DataModule(LightningDataModule):
         self.sample_ratio = sample_ratio
         self.train_split = train_split
 
-        assert emg_samples_per_frame <= 64, "EMG samples per frame must be <= 64"
+        assert emg_samples_per_frame <= W, "EMG samples per frame must be <= W"
         assert (
-            64 % emg_samples_per_frame == 0
-        ), "EMG samples per frame must be a divisor of 64"
+            W % emg_samples_per_frame == 0
+        ), "EMG samples per frame must be a divisor of W"
 
     def setup(self, stage=None):
         recordings = load_recordings(self.path)
@@ -231,7 +233,7 @@ class DataModule(LightningDataModule):
             rec = recordings[i]
 
             frames = np.stack([sample.frame for sample in rec.couples] + [rec.sigma])
-            frames = resample(frames, 1, 64 // self.emg_samples_per_frame)
+            frames = resample(frames, 1, W // self.emg_samples_per_frame)
 
             emg = np.concatenate([sample.emg for sample in rec.couples])
 
@@ -240,8 +242,8 @@ class DataModule(LightningDataModule):
                     HandEmgTuple(
                         frame=frames[j],
                         emg=emg[
-                            i
-                            * self.emg_samples_per_frame : (i + 1)
+                            j
+                            * self.emg_samples_per_frame : (j + 1)
                             * self.emg_samples_per_frame
                         ],
                     )
