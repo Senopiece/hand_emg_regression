@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import yaml
 import warnings
-from torch.utils.data import Dataset, RandomSampler, SubsetRandomSampler
+from torch.utils.data import Dataset, RandomSampler, Sampler, SubsetRandomSampler
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, ConcatDataset
 from typing import List, NamedTuple
@@ -146,6 +146,44 @@ class RecordingSlicing(Dataset):
         }
 
 
+class ConcatSamplerPerDataset(Sampler):
+    """Samples elements from each dataset in a ConcatDataset separately"""
+
+    def __init__(self, concat_dataset, sample_ratio=0.2, seed=None):
+        self.datasets = concat_dataset.datasets
+        self.sample_ratio = sample_ratio
+        self.seed = seed
+
+        # Calculate starting indices for each dataset in the concatenated dataset
+        self.cumulative_sizes = concat_dataset.cumulative_sizes
+        self.offsets = [0] + self.cumulative_sizes[:-1]
+
+    def __iter__(self):
+        # Use a separate generator for each epoch
+        g = torch.Generator()
+        if self.seed is not None:
+            g.manual_seed(self.seed)
+
+        indices = []
+        # Sample from each dataset separately
+        for dataset_idx, dataset in enumerate(self.datasets):
+            size = len(dataset)
+            n_samples = math.ceil(size * self.sample_ratio)
+            # Generate random indices for this dataset
+            dataset_indices = torch.randperm(size, generator=g)[:n_samples]
+            # Add offset to map to concatenated dataset indices
+            indices.extend(dataset_indices.add(self.offsets[dataset_idx]).tolist())
+
+        # Shuffle the combined indices
+        combined = torch.tensor(indices)[torch.randperm(len(indices), generator=g)]
+        return iter(combined.tolist())
+
+    def __len__(self):
+        return sum(
+            math.ceil(len(dataset) * self.sample_ratio) for dataset in self.datasets
+        )
+
+
 class DataModule(LightningDataModule):
     def __init__(
         self,
@@ -238,10 +276,9 @@ class DataModule(LightningDataModule):
         return DataLoader(
             dataset,
             batch_size=self.batch_size,
-            sampler=RandomSampler(
+            sampler=ConcatSamplerPerDataset(
                 dataset,
-                num_samples=math.ceil(len(dataset) * self.sample_ratio),
-                replacement=False,
+                sample_ratio=self.sample_ratio,
             ),
             num_workers=0,
         )
@@ -249,15 +286,14 @@ class DataModule(LightningDataModule):
     def val_dataloader(self):
         dataset = self.val_dataset
 
-        # Generate fixed random indices
-        generator = torch.Generator().manual_seed(42)  # Fixed seed for reproducibility
-        n_samples = math.ceil(len(dataset) * self.sample_ratio)
-        indices = torch.randperm(len(dataset), generator=generator)[:n_samples].tolist()
-
         return DataLoader(
             dataset,
             batch_size=self.batch_size,
-            sampler=SubsetRandomSampler(indices),
+            sampler=ConcatSamplerPerDataset(
+                dataset,
+                sample_ratio=self.sample_ratio,
+                seed=42,
+            ),
             shuffle=False,
             num_workers=0,
         )
