@@ -227,7 +227,7 @@ class DataModule(LightningDataModule):
         frames_per_item: int,
         emg_samples_per_frame: int = W,  # frames will be resampled if differs from W
         batch_size: int = 64,
-        sample_ratio: float = 0.05,
+        sample_ratio: float = 0.2,
         train_split: float = 0.7,
     ):
         super().__init__()
