@@ -118,21 +118,39 @@ def load_recordings(filepath: str) -> List[HandEmgRecording]:
     return recordings
 
 
-def resample(array: np.ndarray, native_fs: int, target_fs: int) -> np.ndarray:
-    # Create a time array for the original series
-    t_native = np.arange(array.shape[0]) / native_fs
+def resample(array: np.ndarray, target_size: int) -> np.ndarray:
+    """
+    Resample a signal array to a target size using linear interpolation
 
-    # Calculate the number of samples in the resampled series
-    num_samples = int(array.shape[0] * target_fs / native_fs)
+    Args:
+        array (np.ndarray): Input signal array of shape (n_samples, ...)
+        target_size (int): Desired number of samples in output
 
-    # Create a time array for the resampled series
-    t_target = np.linspace(0, t_native[-1], num_samples)
+    Returns:
+        np.ndarray: Resampled array of shape (target_size, ...)
+    """
+    # Generate x coordinates for original and target
+    x = np.linspace(0, 1, array.shape[0])
+    x_new = np.linspace(0, 1, target_size)
 
-    # Interpolate the original series at the resampled time points
-    f = interp1d(
-        t_native, array, axis=0, kind="linear", fill_value=np.nan, bounds_error=False
-    )
-    return f(t_target)
+    # Preserve shape of additional dimensions
+    orig_shape = array.shape
+    n_channels = np.prod(orig_shape[1:]) if len(orig_shape) > 1 else 1
+
+    # Reshape to 2D array (samples, channels)
+    y = array.reshape(-1, n_channels)
+
+    # Create interpolation function
+    f = interp1d(x, y, axis=0, kind="linear")
+
+    # Interpolate
+    resampled = f(x_new)
+
+    # Reshape back to original dimensions
+    if len(orig_shape) > 1:
+        resampled = resampled.reshape((target_size,) + orig_shape[1:])
+
+    return resampled
 
 
 class RecordingSlicing(Dataset):
@@ -143,6 +161,8 @@ class RecordingSlicing(Dataset):
     ):
         self.frames_per_item = frames_per_item
         self.recording = recording.to_torch()
+
+        assert not any(e.emg.shape[0] == 0 for e in recording.couples)
 
     def __len__(self):
         res = len(self.recording.couples) - self.frames_per_item + 1
@@ -233,7 +253,10 @@ class DataModule(LightningDataModule):
             rec = recordings[i]
 
             frames = np.stack([sample.frame for sample in rec.couples] + [rec.sigma])
-            frames = resample(frames, 1, W // self.emg_samples_per_frame)
+            frames = resample(
+                frames,
+                (W // self.emg_samples_per_frame) * len(rec.couples) + 1,
+            )
 
             emg = np.concatenate([sample.emg for sample in rec.couples])
 
@@ -254,7 +277,7 @@ class DataModule(LightningDataModule):
 
             recordings[i] = new_rec
 
-        # split: train - the first 80% of each record, val - the last 20%
+        # split: train - the first X% of each record, val - the last %
         train_recordings = []
         val_recordings = []
         for rec in recordings:
