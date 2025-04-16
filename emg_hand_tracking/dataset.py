@@ -207,7 +207,7 @@ class DataModule(LightningDataModule):
         frames_per_item: int,
         emg_samples_per_frame: int = 64,  # frames will be resampled if differs from 64
         batch_size: int = 64,
-        sample_ratio: float = 0.2,
+        sample_ratio: float = 0.8,
     ):
         super().__init__()
         self.path = path
