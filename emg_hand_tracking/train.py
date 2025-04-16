@@ -32,6 +32,7 @@ def run_single(
 
     frames_per_item = 100
     batch_size = 64
+    sample_ratio = 0.05
 
     if dataset_path.startswith("tail:"):
         data_module = TailSplitDataModule(
@@ -39,6 +40,7 @@ def run_single(
             emg_samples_per_frame=model.emg_samples_per_frame,
             frames_per_item=frames_per_item,
             batch_size=batch_size,
+            sample_ratio=sample_ratio,
         )
     elif dataset_path.startswith("manual:"):
         data_module = ManualSplitDataModule(
@@ -47,6 +49,7 @@ def run_single(
             emg_samples_per_frame=model.emg_samples_per_frame,
             frames_per_item=frames_per_item,
             batch_size=batch_size,
+            sample_ratio=sample_ratio,
         )
     else:
         raise ValueError(
