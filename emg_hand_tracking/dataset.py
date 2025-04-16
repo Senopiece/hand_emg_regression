@@ -48,6 +48,14 @@ class HandEmgRecording(NamedTuple):
             sigma=torch.tensor(self.sigma, dtype=torch.float32),
         )
 
+    @property
+    def emg(self):
+        return np.concatenate([s.emg for s in self.couples])
+
+    @property
+    def frames(self):
+        return np.stack([s.frame for s in self.couples] + [self.sigma])
+
 
 class HandEmgTorchTuple(NamedTuple):
     frame: torch.Tensor  # (20,), float32 expected
@@ -57,6 +65,14 @@ class HandEmgTorchTuple(NamedTuple):
 class HandEmgTorchRecording(NamedTuple):
     couples: List[HandEmgTorchTuple]
     sigma: torch.Tensor  # (20,), float32 single final frame
+
+    @property
+    def emg(self):
+        return torch.concat([s.emg for s in self.couples])
+
+    @property
+    def frames(self):
+        return torch.stack([s.frame for s in self.couples] + [self.sigma])
 
 
 def resample(array: np.ndarray, target_size: int) -> np.ndarray:
@@ -154,13 +170,12 @@ def load_recordings(path: str, emg_samples_per_frame: int = W):
     for i in tqdm(range(len(recordings))):
         rec = recordings[i]
 
-        frames = np.stack([sample.frame for sample in rec.couples] + [rec.sigma])
         frames = resample(
-            frames,
+            rec.frames,
             (W // emg_samples_per_frame) * len(rec.couples) + 1,
         )
 
-        emg = np.concatenate([sample.emg for sample in rec.couples])
+        emg = rec.emg
 
         new_rec = HandEmgRecording(
             couples=[
