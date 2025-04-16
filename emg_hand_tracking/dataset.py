@@ -161,24 +161,6 @@ class RecordingSlicing(Dataset):
             "poses": torch.stack([e.frame for e in s] + [f]),
         }
 
-    # def __len__(self):
-    #     return len(self.recording.couples) // self.frames_per_item
-
-    # def __getitem__(self, idx):
-    #     u = idx * self.frames_per_item + self.frames_per_item
-
-    #     s = self.recording.couples[idx * self.frames_per_item : u]
-
-    #     if u == len(self.recording.couples):
-    #         f = self.recording.sigma
-    #     else:
-    #         f = self.recording.couples[u].frame
-
-    #     return {
-    #         "emg": torch.concat([e.emg for e in s]),
-    #         "poses": torch.stack([e.frame for e in s] + [f]),
-    #     }
-
 
 class ConcatSamplerPerDataset(Sampler):
     """Samples elements from each dataset in a ConcatDataset separately"""
@@ -226,7 +208,7 @@ class DataModule(LightningDataModule):
         emg_samples_per_frame: int = 64,  # frames will be resampled if differs from 64
         batch_size: int = 64,
         sample_ratio: float = 0.05,
-        train_split: float = 0.8,
+        train_split: float = 0.7,
     ):
         super().__init__()
         self.path = path
@@ -333,24 +315,6 @@ class DataModule(LightningDataModule):
             shuffle=False,
             num_workers=0,
         )
-
-    # def train_dataloader(self):
-    #     dataset = self.train_dataset
-    #     return DataLoader(
-    #         dataset,
-    #         batch_size=self.batch_size,
-    #         shuffle=True,
-    #         num_workers=0,
-    #     )
-
-    # def val_dataloader(self):
-    #     dataset = self.val_dataset
-    #     return DataLoader(
-    #         dataset,
-    #         batch_size=self.batch_size,
-    #         shuffle=False,
-    #         num_workers=0,
-    #     )
 
     def test_dataloader(self):
         return self.val_dataloader()
