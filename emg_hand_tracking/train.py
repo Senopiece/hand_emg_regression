@@ -42,8 +42,8 @@ def run_single(
         )
     elif dataset_path.startswith("manual:"):
         data_module = ManualSplitDataModule(
-            train_path=dataset_path[len("manual:") :] + "/train.dataset",
-            val_path=dataset_path[len("manual:") :] + "/val.dataset",
+            train_path=dataset_path[len("manual:") :] + "/train.recordings",
+            val_path=dataset_path[len("manual:") :] + "/val.recordings",
             emg_samples_per_frame=model.emg_samples_per_frame,
             frames_per_item=frames_per_item,
             batch_size=batch_size,
