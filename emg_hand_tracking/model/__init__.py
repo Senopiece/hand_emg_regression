@@ -88,7 +88,7 @@ class Model(pl.LightningModule):
             max_lr=1e-2,
             total_steps=self.trainer.estimated_stepping_batches,  # type: ignore
             div_factor=1e2,
-            final_div_factor=1e2,
+            final_div_factor=1e4,
             pct_start=0.3,
             anneal_strategy="cos",
             cycle_momentum=False,
