@@ -179,4 +179,4 @@ wandb/
 checkpoints/
 logs/
 *.ckpt
-*.recordings
+dataset.zip

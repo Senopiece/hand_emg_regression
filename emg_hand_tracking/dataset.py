@@ -1,4 +1,5 @@
 import math
+from turtle import title
 import zipfile
 import numpy as np
 import torch
@@ -32,12 +33,12 @@ class HandEmgTuple(NamedTuple):
     emg: np.ndarray  # (W, C), float32 expected
 
 
-class HandEmgRecording(NamedTuple):
+class HandEmgRecordingSegment(NamedTuple):
     couples: List[HandEmgTuple]
     sigma: np.ndarray  # (20,), float32 single final frame
 
     def to_torch(self):
-        return HandEmgTorchRecording(
+        return HandEmgTorchRecordingSegment(
             couples=[
                 HandEmgTorchTuple(
                     frame=torch.tensor(c.frame, dtype=torch.float32),
@@ -57,12 +58,15 @@ class HandEmgRecording(NamedTuple):
         return np.stack([s.frame for s in self.couples] + [self.sigma])
 
 
+HandEmgRecording = List[HandEmgRecordingSegment]
+
+
 class HandEmgTorchTuple(NamedTuple):
     frame: torch.Tensor  # (20,), float32 expected
     emg: torch.Tensor  # (W, C), float32 expected
 
 
-class HandEmgTorchRecording(NamedTuple):
+class HandEmgTorchRecordingSegment(NamedTuple):
     couples: List[HandEmgTorchTuple]
     sigma: torch.Tensor  # (20,), float32 single final frame
 
@@ -73,6 +77,9 @@ class HandEmgTorchRecording(NamedTuple):
     @property
     def frames(self):
         return torch.stack([s.frame for s in self.couples] + [self.sigma])
+
+
+HandEmgTorchRecording = List[HandEmgTorchRecordingSegment]
 
 
 def resample(array: np.ndarray, target_size: int) -> np.ndarray:
@@ -111,86 +118,123 @@ def resample(array: np.ndarray, target_size: int) -> np.ndarray:
 
 
 def load_recordings(path: str, emg_samples_per_frame: int = W):
+    """
+    Load recordings from a zip file with the following structure:
+    dataset.zip/
+        metadata.yml
+        recordings/
+          1/
+            segments/
+              1
+              2
+          2/
+            segments/
+              1
+              2
+
+    Then resampling it if needed.
+    """
     assert emg_samples_per_frame <= W, "EMG samples per frame must be <= W"
     assert (
         W % emg_samples_per_frame == 0
     ), "EMG samples per frame must be a divisor of W"
 
     recordings: List[HandEmgRecording] = []
+
     with zipfile.ZipFile(path, mode="r") as archive:
-        # Read the metadata file to get the number of EMG channels (C).
-        metadata = yaml.safe_load(archive.read("_metadata.yml"))
+        # Read the metadata file to get the number of EMG channels (C)
+        metadata = yaml.safe_load(archive.read("metadata.yml"))
         C = metadata["C"]
 
-        # Get the list of file names from the archive and sort them numerically.
-        file_names = sorted(
-            archive.namelist(),
-            key=lambda x: int(x.split(".")[0]) if x.endswith(".rec") else float("inf"),
-        )
-        for fname in tqdm(file_names):
-            if fname == "_metadata.yml":
-                continue  # Skip the metadata file
-
-            data = archive.read(fname)
-            pos = 0
-
-            # Calculate the size per sample:
-            # 20 float32 values for frame (20*4 bytes) and W * C float32 values for emg.
-            sample_size = 20 * 4 + W * C * 4
-
-            # Deduce the number of samples T.
-            T = (
-                len(data) - 20 * 4
-            ) // sample_size  # Subtract the size of the final sigma frame
-
-            rec = []
-            for _ in range(T):
-                frame_bytes = data[pos : pos + 20 * 4]
-                frame = np.frombuffer(frame_bytes, dtype=np.float32)
-                pos += 20 * 4
-
-                emg_bytes = data[pos : pos + W * C * 4]
-                emg = np.frombuffer(emg_bytes, dtype=np.float32).reshape((W, C))
-                pos += W * C * 4
-
-                rec.append(HandEmgTuple(frame=frame, emg=emg))
-
-            # Read the final sigma frame
-            sigma_bytes = data[pos : pos + 20 * 4]
-            sigma = np.frombuffer(sigma_bytes, dtype=np.float32)
-
-            # Append the complete recording to the list
-            recordings.append(HandEmgRecording(couples=rec, sigma=sigma))
-
-    if emg_samples_per_frame == W:
-        # Skip resampling as the EMG samples per frame is already W
-        return recordings
-
-    print("Resampling recordings...")
-    for i in tqdm(range(len(recordings))):
-        rec = recordings[i]
-
-        frames = resample(
-            rec.frames,
-            (W // emg_samples_per_frame) * len(rec.couples) + 1,
+        # Get all recording directories
+        all_files = archive.namelist()
+        recording_dirs = set(
+            path.split("/")[1]
+            for path in all_files
+            if path.startswith("recordings/") and len(path.split("/")) > 2
         )
 
-        emg = rec.emg
+        # Process each recording
+        for rec_dir in tqdm(
+            sorted(recording_dirs, key=lambda x: int(x)),
+            desc="Loading dataset",
+        ):
+            recording = []
 
-        new_rec = HandEmgRecording(
-            couples=[
-                HandEmgTuple(
-                    frame=frames[j],
-                    emg=emg[
-                        j * emg_samples_per_frame : (j + 1) * emg_samples_per_frame
-                    ],
+            # Get segment files for this recording
+            segment_files = [
+                f
+                for f in all_files
+                if f.startswith(f"recordings/{rec_dir}/segments/")
+                and f.split("/")[-1].isdigit()
+            ]
+
+            # Process each segment
+            for seg_file in sorted(segment_files, key=lambda x: int(x.split("/")[-1])):
+                data = archive.read(seg_file)
+                pos = 0
+
+                # Calculate size per sample
+                sample_size = 20 * 4 + W * C * 4  # frame (20*4) + emg (W*C*4)
+
+                # Calculate number of samples
+                T = (len(data) - 20 * 4) // sample_size  # Subtract final sigma frame
+
+                # Read all frame-EMG pairs
+                segment_data = []
+                for _ in range(T):
+                    # Read frame
+                    frame_bytes = data[pos : pos + 20 * 4]
+                    frame = np.frombuffer(frame_bytes, dtype=np.float32)
+                    pos += 20 * 4
+
+                    # Read EMG
+                    emg_bytes = data[pos : pos + W * C * 4]
+                    emg = np.frombuffer(emg_bytes, dtype=np.float32).reshape((W, C))
+                    pos += W * C * 4
+
+                    segment_data.append(HandEmgTuple(frame=frame, emg=emg))
+
+                # Read final sigma frame
+                sigma_bytes = data[pos : pos + 20 * 4]
+                sigma = np.frombuffer(sigma_bytes, dtype=np.float32)
+
+                # Add segment to recording
+                recording.append(
+                    HandEmgRecordingSegment(couples=segment_data, sigma=sigma)
                 )
-                for j in range(frames.shape[0] - 1)
-            ],
-            sigma=rec.sigma,
-        )
 
-        recordings[i] = new_rec
+            recordings.append(recording)
+
+    # Handle resampling if needed
+    if emg_samples_per_frame != W:
+        for i in tqdm(range(len(recordings)), desc="Upsampling segments"):
+            for j in range(len(recordings[i])):
+                rec = recordings[i][j]
+
+                frames = resample(
+                    rec.frames,
+                    (W // emg_samples_per_frame) * len(rec.couples) + 1,
+                )
+
+                emg = rec.emg
+
+                new_rec = HandEmgRecordingSegment(
+                    couples=[
+                        HandEmgTuple(
+                            frame=frames[k],
+                            emg=emg[
+                                k
+                                * emg_samples_per_frame : (k + 1)
+                                * emg_samples_per_frame
+                            ],
+                        )
+                        for k in range(frames.shape[0] - 1)
+                    ],
+                    sigma=rec.sigma,
+                )
+
+                recordings[i][j] = new_rec
 
     return recordings
 
@@ -198,25 +242,25 @@ def load_recordings(path: str, emg_samples_per_frame: int = W):
 class RecordingSlicing(Dataset):
     def __init__(
         self,
-        recording: HandEmgRecording,
+        segment: HandEmgRecordingSegment,
         frames_per_item: int,
     ):
         self.frames_per_item = frames_per_item
-        self.recording = recording.to_torch()
+        self.segment = segment.to_torch()
 
     def __len__(self):
-        res = len(self.recording.couples) - self.frames_per_item + 1
+        res = len(self.segment.couples) - self.frames_per_item + 1
         return res if res > 0 else 0
 
     def __getitem__(self, idx):
         u = idx + self.frames_per_item
 
-        s = self.recording.couples[idx:u]
+        s = self.segment.couples[idx:u]
 
-        if u == len(self.recording.couples):
-            f = self.recording.sigma
+        if u == len(self.segment.couples):
+            f = self.segment.sigma
         else:
-            f = self.recording.couples[u].frame
+            f = self.segment.couples[u].frame
 
         return {
             "emg": torch.concat([e.emg for e in s]),
@@ -262,42 +306,71 @@ class ConcatSamplerPerDataset(Sampler):
         )
 
 
-class RecordingsDataModule(LightningDataModule):
+class DataModule(LightningDataModule):
     def __init__(
         self,
+        path: str,  # path to the zip file
         frames_per_item: int,
+        emg_samples_per_frame: int = W,  # frames will be resampled if differs from W
         batch_size: int = 64,
         sample_ratio: float = 0.2,
+        val_window: int = 250,  # in frames
     ):
         super().__init__()
+        self.path = path
+        self.emg_samples_per_frame = emg_samples_per_frame
         self.frames_per_item = frames_per_item
         self.batch_size = batch_size
         self.sample_ratio = sample_ratio
+        self.val_window = val_window
 
-    def _recordings(self):
-        raise NotImplementedError()
+    def _segments(self, stage=None):
+        recordings = load_recordings(self.path, self.emg_samples_per_frame)
+
+        # split: val - the last X frames from each recording
+        train_segments = []
+        val_segments = []
+        for rec in recordings:
+            acc_window = 0
+            for segment in reversed(rec):
+                acc_window += len(segment.couples)
+                if acc_window <= self.val_window:
+                    val_segments.append(segment)
+                elif acc_window - len(segment.couples) >= self.val_window:
+                    train_segments.append(segment)
+                else:
+                    split_idx = len(segment.couples) - (acc_window - self.val_window)
+                    train_segments.append(
+                        HandEmgRecordingSegment(
+                            couples=segment.couples[:split_idx],
+                            sigma=segment.couples[split_idx].frame,
+                        )
+                    )
+                    val_segments.append(
+                        HandEmgRecordingSegment(
+                            couples=segment.couples[split_idx:],
+                            sigma=segment.sigma,
+                        )
+                    )
+
+        return train_segments, val_segments
 
     def setup(self, stage=None):
-        train_recordings, val_recordings = self._recordings()
+        train_segments, val_segments = self._segments()
 
-        self.train_dataset = ConcatDataset(
-            [
-                RecordingSlicing(
-                    r,
-                    frames_per_item=self.frames_per_item,
+        def to_dataset(name, segments):
+            slices = []
+            for segment in tqdm(segments, desc=f"Transforming {name} dataset"):
+                slices.append(
+                    RecordingSlicing(
+                        segment,
+                        frames_per_item=self.frames_per_item,
+                    )
                 )
-                for r in train_recordings
-            ]
-        )
-        self.val_dataset = ConcatDataset(
-            [
-                RecordingSlicing(
-                    r,
-                    frames_per_item=self.frames_per_item,
-                )
-                for r in val_recordings
-            ]
-        )
+            return ConcatDataset(slices)
+
+        self.train_dataset = to_dataset("train", train_segments)
+        self.val_dataset = to_dataset("val", val_segments)
 
     def train_dataloader(self):
         dataset = self.train_dataset
@@ -327,63 +400,3 @@ class RecordingsDataModule(LightningDataModule):
 
     def test_dataloader(self):
         return self.val_dataloader()
-
-
-class TailSplitDataModule(RecordingsDataModule):
-    def __init__(
-        self,
-        path: str,  # path to the zip file
-        frames_per_item: int,
-        emg_samples_per_frame: int = W,  # frames will be resampled if differs from W
-        batch_size: int = 64,
-        sample_ratio: float = 0.2,
-        train_split: float = 0.7,
-    ):
-        super().__init__(frames_per_item, batch_size, sample_ratio)
-        self.path = path
-        self.emg_samples_per_frame = emg_samples_per_frame
-        self.train_split = train_split
-
-    def _recordings(self, stage=None):
-        recordings = load_recordings(self.path, self.emg_samples_per_frame)
-
-        # split: train - the first X% of each record, val - the last %
-        train_recordings = []
-        val_recordings = []
-        for rec in recordings:
-            split_idx = int(len(rec.couples) * self.train_split)
-            train_recordings.append(
-                HandEmgRecording(
-                    couples=rec.couples[:split_idx],
-                    sigma=rec.couples[split_idx].frame,
-                )
-            )
-            val_recordings.append(
-                HandEmgRecording(
-                    couples=rec.couples[split_idx:],
-                    sigma=rec.sigma,
-                )
-            )
-
-        return train_recordings, val_recordings
-
-
-class ManualSplitDataModule(RecordingsDataModule):
-    def __init__(
-        self,
-        train_path: str,  # path to the train dataset zip file
-        val_path: str,  # path to the train dataset zip file
-        frames_per_item: int,
-        emg_samples_per_frame: int = W,  # frames will be resampled if differs from W
-        batch_size: int = 64,
-        sample_ratio: float = 0.2,
-    ):
-        super().__init__(frames_per_item, batch_size, sample_ratio)
-        self.train_path = train_path
-        self.val_path = val_path
-        self.emg_samples_per_frame = emg_samples_per_frame
-
-    def _recordings(self, stage=None):
-        train_recordings = load_recordings(self.train_path, self.emg_samples_per_frame)
-        val_recordings = load_recordings(self.val_path, self.emg_samples_per_frame)
-        return train_recordings, val_recordings

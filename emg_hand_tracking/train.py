@@ -10,7 +10,7 @@ from pytorch_lightning.loggers import WandbLogger
 from datetime import timezone, datetime
 import torch
 
-from .dataset import ManualSplitDataModule, TailSplitDataModule
+from .dataset import DataModule
 from .model import Model
 
 
@@ -30,31 +30,13 @@ def run_single(
         print(f"Initializing {model_name}...")
         model = Model.construct(model_name)
 
-    frames_per_item = 100
-    batch_size = 64
-    sample_ratio = 0.05
-
-    if dataset_path.startswith("tail:"):
-        data_module = TailSplitDataModule(
-            path=dataset_path[len("tail:") :],
-            emg_samples_per_frame=model.emg_samples_per_frame,
-            frames_per_item=frames_per_item,
-            batch_size=batch_size,
-            sample_ratio=sample_ratio,
-        )
-    elif dataset_path.startswith("manual:"):
-        data_module = ManualSplitDataModule(
-            train_path=dataset_path[len("manual:") :] + "/train.recordings",
-            val_path=dataset_path[len("manual:") :] + "/val.recordings",
-            emg_samples_per_frame=model.emg_samples_per_frame,
-            frames_per_item=frames_per_item,
-            batch_size=batch_size,
-            sample_ratio=sample_ratio,
-        )
-    else:
-        raise ValueError(
-            "Dataset path must start with 'tail:' or 'manual:' to indicate the type of split."
-        )
+    data_module = DataModule(
+        path=dataset_path,
+        emg_samples_per_frame=model.emg_samples_per_frame,
+        frames_per_item=100,
+        sample_ratio=0.05,
+        batch_size=64,
+    )
 
     trainer = Trainer(
         max_epochs=100,
@@ -178,7 +160,7 @@ if __name__ == "__main__":
     env_dataset_path = os.getenv("DATASET_PATH")
 
     if env_dataset_path is None:
-        env_dataset_path = "user1.recordings"
+        env_dataset_path = "dataset.zip"
 
     parser = argparse.ArgumentParser(description="Train EMG-to-Pose model")
     parser.add_argument(
