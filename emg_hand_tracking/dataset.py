@@ -325,8 +325,8 @@ class DataModule(LightningDataModule):
         recordings = load_recordings(self.path, self.emg_samples_per_frame)
 
         # split: val - the last X frames from each recording
-        train_segments = []
-        val_segments = []
+        train_segments: List[HandEmgRecordingSegment] = []
+        val_segments: List[HandEmgRecordingSegment] = []
         for rec in recordings:
             acc_window = 0
             for segment in reversed(rec):
@@ -336,7 +336,7 @@ class DataModule(LightningDataModule):
                 elif acc_window - len(segment.couples) >= self.val_window:
                     train_segments.append(segment)
                 else:
-                    split_idx = len(segment.couples) - (acc_window - self.val_window)
+                    split_idx = acc_window - self.val_window
                     train_segments.append(
                         HandEmgRecordingSegment(
                             couples=segment.couples[:split_idx],
