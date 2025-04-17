@@ -313,7 +313,7 @@ class DataModule(LightningDataModule):
         emg_samples_per_frame: int = W,  # frames will be resampled if differs from W
         batch_size: int = 64,
         sample_ratio: float = 0.2,
-        val_window: int = 250,  # in frames
+        val_window: int = 248,  # in frames
     ):
         super().__init__()
         self.path = path
