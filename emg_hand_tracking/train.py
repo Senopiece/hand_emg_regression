@@ -9,6 +9,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 from datetime import timezone, datetime
 import torch
+import shlex
 
 from .dataset import DataModule
 from .model import EMG_SAMPLES_PER_FRAME, emg_channels, Model
@@ -235,7 +236,7 @@ if __name__ == "__main__":
                     "--model",
                     args.model,
                     "--dataset_path",
-                    dataset_path,
+                    shlex.quote(dataset_path),
                     *(
                         ["-v", args.version + version_postfix]
                         if args.version
