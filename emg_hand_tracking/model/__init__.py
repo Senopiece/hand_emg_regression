@@ -102,6 +102,10 @@ class Model(pl.LightningModule):
         return [optimizer], [scheduler_config]
 
 
+EMG_SAMPLES_PER_FRAME = 16  # 120 predictions/sec
+emg_channels = 16
+
+
 class V42(Model):
     def __init__(self):
         super().__init__()
@@ -118,8 +122,8 @@ class V42(Model):
             + (pattern_subfeature_windows - 1) * pattern_subfeature_stride
         )
 
-        self.channels = 16
-        self.emg_samples_per_frame = 16  # 120 predictions/sec
+        self.channels = emg_channels
+        self.emg_samples_per_frame = EMG_SAMPLES_PER_FRAME
         self.frames_per_window = 20
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20

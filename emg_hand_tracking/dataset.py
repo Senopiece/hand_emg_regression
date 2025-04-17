@@ -352,6 +352,13 @@ class DataModule(LightningDataModule):
 
         return train_segments, val_segments
 
+    @property
+    def emg_channels(self):
+        # Sneak peek into the dataset
+        with zipfile.ZipFile(self.path, mode="r") as archive:
+            metadata = yaml.safe_load(archive.read("metadata.yml"))
+            return metadata["C"]
+
     def setup(self, stage=None):
         train_segments, val_segments = self._segments()
 

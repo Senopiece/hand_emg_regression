@@ -11,7 +11,7 @@ from datetime import timezone, datetime
 import torch
 
 from .dataset import DataModule
-from .model import Model
+from .model import EMG_SAMPLES_PER_FRAME, emg_channels, Model
 
 
 def run_single(
@@ -21,7 +21,18 @@ def run_single(
     dataset_path: str,
     cont: bool,
 ):
+    global emg_channels
     torch.set_float32_matmul_precision("medium")
+
+    data_module = DataModule(
+        path=dataset_path,
+        emg_samples_per_frame=EMG_SAMPLES_PER_FRAME,
+        frames_per_item=100,
+        sample_ratio=0.05,
+        batch_size=64,
+    )
+
+    emg_channels = data_module.emg_channels
 
     ckpt_path = f"./checkpoints/{model_name}.ckpt"
     if cont and os.path.exists(ckpt_path):
@@ -30,14 +41,6 @@ def run_single(
     else:
         print(f"Initializing {model_name}...")
         model = Model.construct(model_name)
-
-    data_module = DataModule(
-        path=dataset_path,
-        emg_samples_per_frame=model.emg_samples_per_frame,
-        frames_per_item=100,
-        sample_ratio=0.05,
-        batch_size=64,
-    )
 
     trainer = Trainer(
         max_epochs=200,
