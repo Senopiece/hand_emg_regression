@@ -15,6 +15,7 @@ from .model import Model
 
 
 def run_single(
+    run_prefix: str,
     model_name: str,
     enable_progress_bar: bool,
     dataset_path: str,
@@ -45,7 +46,8 @@ def run_single(
         enable_progress_bar=enable_progress_bar,
         logger=WandbLogger(
             project="emg-hand-regression",
-            version=model_name
+            version=run_prefix
+            + model_name
             + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
         ),
         callbacks=[
@@ -73,6 +75,7 @@ def run_single(
 
 
 def run_many(
+    run_prefix: str,
     models: List[str],
     dataset_path: str,
     cont: bool,
@@ -100,6 +103,7 @@ def run_many(
                 model,
                 "--dataset_path",
                 dataset_path,
+                *(["-v", run_prefix] if run_prefix != "" else []),
                 "-p",
                 *(["-n"] if not cont else []),
             ],
@@ -129,6 +133,7 @@ def run_many(
 
 
 def main(
+    run_prefix: str,
     model_names: List[str],
     enable_progress_bar: bool,
     dataset_path: str,
@@ -142,9 +147,9 @@ def main(
         model_names = list(Model.impls())
 
     if len(model_names) == 1:
-        run_single(model_names[0], enable_progress_bar, dataset_path, cont)
+        run_single(run_prefix, model_names[0], enable_progress_bar, dataset_path, cont)
     else:
-        run_many(model_names, dataset_path, cont)
+        run_many(run_prefix, model_names, dataset_path, cont)
 
     return 0
 
@@ -179,6 +184,12 @@ if __name__ == "__main__":
         help="Path to the emg2pose directory (can also be set via the DATASET_PATH environment variable)",
     )
     parser.add_argument(
+        "--version",
+        "-v",
+        type=str,
+        help="Version prefix to add into run name",
+    )
+    parser.add_argument(
         "--new",
         "-n",
         action="store_true",
@@ -199,6 +210,7 @@ if __name__ == "__main__":
 
     sys.exit(
         main(
+            run_prefix=args.version if args.version else "",
             model_names=args.model.split(","),
             dataset_path=args.dataset_path,
             cont=not args.new,
