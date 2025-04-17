@@ -155,18 +155,6 @@ def main(
 
 
 if __name__ == "__main__":
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv()
-    except ImportError:
-        print("dotenv module not found. Skipping environment variable loading.")
-
-    env_dataset_path = os.getenv("DATASET_PATH")
-
-    if env_dataset_path is None:
-        env_dataset_path = "dataset.zip"
-
     parser = argparse.ArgumentParser(description="Train EMG-to-Pose model")
     parser.add_argument(
         "--model",
@@ -180,8 +168,14 @@ if __name__ == "__main__":
         "--dataset_path",
         "-d",
         type=str,
-        default=env_dataset_path,
+        default="dataset.zip",
         help="Path to the emg2pose directory (can also be set via the DATASET_PATH environment variable)",
+    )
+    parser.add_argument(
+        "--datasets_path",
+        "-ds",
+        type=str,
+        help="Path to the directory containing multiple dataset paths",
     )
     parser.add_argument(
         "--version",
@@ -203,17 +197,78 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if args.dataset_path is None:
+    if args.dataset_path is None and args.datasets_path is None:
         raise ValueError(
-            "Please provide a dataset path via the --dataset_path argument or set the DATASET_PATH environment variable."
+            "Please provide a dataset via the --dataset_path/--datasets_path"
         )
 
-    sys.exit(
-        main(
-            run_prefix=args.version if args.version else "",
-            model_names=args.model.split(","),
-            dataset_path=args.dataset_path,
-            cont=not args.new,
-            enable_progress_bar=not args.disable_progress_bar,
+    if args.datasets_path:
+        if not os.path.isdir(args.datasets_path):
+            raise ValueError(
+                f"The provided datasets_path '{args.datasets_path}' is not a valid directory."
+            )
+
+        dataset_paths = [
+            os.path.join(args.datasets_path, f)
+            for f in os.listdir(args.datasets_path)
+            if os.path.isfile(os.path.join(args.datasets_path, f))
+        ]
+        processes = []
+
+        def terminate_processes(signum, frame):
+            print("\nTerminating all processes...")
+            for p in processes:
+                p.terminate()
+            for p in processes:
+                p.wait()
+            exit(0)
+
+        signal.signal(signal.SIGINT, terminate_processes)
+
+        for dataset_path in dataset_paths:
+            process = subprocess.Popen(
+                [
+                    "python",
+                    "-m",
+                    "emg_hand_tracking.train",
+                    "--model",
+                    args.model,
+                    "--dataset_path",
+                    dataset_path,
+                    *(["-v", args.version] if args.version else []),
+                    "-p",
+                    *(["-n"] if args.new else []),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            processes.append(process)
+
+        try:
+            while processes:
+                for p in processes:
+                    output = p.stdout.readline()
+                    if output:
+                        print(f"{p.args[6]} | {output.strip()}")
+                    if p.poll() is not None:  # Process has ended
+                        processes.remove(p)
+
+                        # Terminate all if any exited with non-zero exit code
+                        if p.returncode != 0:
+                            print(
+                                f"Process for dataset {p.args[6]} exited with error code {p.returncode}."
+                            )
+                            terminate_processes(None, None)
+        except KeyboardInterrupt:
+            terminate_processes(None, None)
+    else:
+        sys.exit(
+            main(
+                run_prefix=args.version if args.version else "",
+                model_names=args.model.split(","),
+                enable_progress_bar=not args.disable_progress_bar,
+                dataset_path=args.dataset_path,
+                cont=not args.new,
+            )
         )
-    )
