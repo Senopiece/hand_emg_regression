@@ -218,7 +218,7 @@ def load_recordings(path: str, emg_samples_per_frame: int = W):
 
                 emg = rec.emg
 
-                new_rec = HandEmgRecordingSegment(
+                recordings[i][j] = HandEmgRecordingSegment(
                     couples=[
                         HandEmgTuple(
                             frame=frames[k],
@@ -232,8 +232,6 @@ def load_recordings(path: str, emg_samples_per_frame: int = W):
                     ],
                     sigma=rec.sigma,
                 )
-
-                recordings[i][j] = new_rec
 
     return recordings
 
