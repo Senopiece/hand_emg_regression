@@ -180,3 +180,4 @@ checkpoints/
 logs/
 *.ckpt
 dataset.zip
+datasets/
