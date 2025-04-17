@@ -85,7 +85,7 @@ class Model(pl.LightningModule):
 
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
-            max_lr=1e-2,
+            max_lr=1e-3,
             total_steps=self.trainer.estimated_stepping_batches,  # type: ignore
             pct_start=0.3,
             anneal_strategy="cos",
