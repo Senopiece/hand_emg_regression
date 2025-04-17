@@ -42,6 +42,7 @@ def run_single(
         print(f"Initializing {model_name}...")
         model = Model.construct(model_name)
 
+    version_name = run_prefix + model_name
     trainer = Trainer(
         max_epochs=200,
         gradient_clip_val=1.0,
@@ -49,15 +50,14 @@ def run_single(
         enable_progress_bar=enable_progress_bar,
         logger=WandbLogger(
             project="emg-hand-regression",
-            version=run_prefix
-            + model_name
+            version=version_name
             + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
         ),
         callbacks=[
             ModelCheckpoint(
                 dirpath="checkpoints",
                 save_weights_only=True,
-                filename=model_name,
+                filename=version_name,
                 save_top_k=1,
                 monitor="val_loss",
                 mode="min",
@@ -224,7 +224,9 @@ if __name__ == "__main__":
         signal.signal(signal.SIGINT, terminate_processes)
 
         for dataset_path in dataset_paths:
-            version_postfix = os.path.basename(dataset_path) + "_"
+            filename = os.path.basename(dataset_path)
+            filename_without_extension = os.path.splitext(filename)[0]
+            version_postfix = filename_without_extension + "_"
             process = subprocess.Popen(
                 [
                     "python",
