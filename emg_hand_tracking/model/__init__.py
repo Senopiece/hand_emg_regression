@@ -81,7 +81,7 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters())
 
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
@@ -294,7 +294,7 @@ class V42(Model):
         loss = 1.0 * sq_delta.sum(dim=-1).mean()
 
         # A term for differential follow (reduces jitter and helps to learn faster)
-        for k in [2.0, 1.0]:
+        for k in [1.0, 1.0]:
             # Differentiate
             landmarks_pred = landmarks_pred.diff(dim=1)  # (B, S, L, 3)
             landmarks_gt = landmarks_gt.diff(dim=1)  # (B, S, L, 3)
