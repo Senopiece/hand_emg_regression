@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, final
 from emg2pose.kinematics import forward_kinematics, load_default_hand_model
 import torch
 import torch.nn as nn
@@ -85,8 +85,9 @@ class Model(pl.LightningModule):
 
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
-            max_lr=1e-3,
+            max_lr=1e-2,
             total_steps=self.trainer.estimated_stepping_batches,  # type: ignore
+            final_div_factor=1e2,
             pct_start=0.3,
             anneal_strategy="cos",
             cycle_momentum=False,
