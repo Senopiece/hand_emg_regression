@@ -103,10 +103,10 @@ def run_many(
                 "-m",
                 "emg_hand_tracking.train",
                 "--model",
-                f'"{model}"',
+                model,
                 "--dataset_path",
-                f'"{dataset_path}"',
-                *(["-v", f'"{run_prefix}"'] if run_prefix != "" else []),
+                dataset_path,
+                *(["-v", run_prefix] if run_prefix != "" else []),
                 "-p",
                 *(["-n"] if not cont else []),
             ],
@@ -233,13 +233,13 @@ if __name__ == "__main__":
                     "-m",
                     "emg_hand_tracking.train",
                     "--model",
-                    f'"{args.model}"',
+                    args.model,
                     "--dataset_path",
-                    f'"{dataset_path}"',
+                    dataset_path,
                     *(
-                        ["-v", f'"{args.version + version_postfix}"']
+                        ["-v", args.version + version_postfix]
                         if args.version
-                        else [f'"{version_postfix}"']
+                        else [version_postfix]
                     ),
                     "-p",
                     *(["-n"] if args.new else []),
