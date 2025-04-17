@@ -3,7 +3,7 @@ import argparse
 import signal
 import subprocess
 import sys
-from typing import List
+from typing import List, Tuple
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
@@ -211,13 +211,13 @@ if __name__ == "__main__":
             for f in os.listdir(args.datasets_path)
             if os.path.isfile(os.path.join(args.datasets_path, f))
         ]
-        processes = []
+        processes: List[Tuple[str, subprocess.Popen]] = []
 
         def terminate_processes(signum, frame):
             print("\nTerminating all processes...")
-            for p in processes:
+            for _, p in processes:
                 p.terminate()
-            for p in processes:
+            for _, p in processes:
                 p.wait()
             exit(0)
 
@@ -248,21 +248,22 @@ if __name__ == "__main__":
                 stderr=subprocess.STDOUT,
                 text=True,
             )
-            processes.append(process)
+            processes.append((filename_without_extension, process))
 
         try:
             while processes:
-                for p in processes:
-                    output = p.stdout.readline()
+                for k in processes:
+                    name, p = k
+                    output = p.stdout.readline()  # type: ignore
                     if output:
-                        print(f"{p.args[6]} | {output.strip()}")
+                        print(f"{name} | {output.strip()}")
                     if p.poll() is not None:  # Process has ended
-                        processes.remove(p)
+                        processes.remove(k)
 
                         # Terminate all if any exited with non-zero exit code
                         if p.returncode != 0:
                             print(
-                                f"Process for dataset {p.args[6]} exited with error code {p.returncode}."
+                                f"Process for dataset {name} exited with error code {p.returncode}."
                             )
                             terminate_processes(None, None)
         except KeyboardInterrupt:
