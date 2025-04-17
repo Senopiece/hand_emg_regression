@@ -197,11 +197,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if args.dataset_path is None and args.datasets_path is None:
-        raise ValueError(
-            "Please provide a dataset via the --dataset_path/--datasets_path"
-        )
-
     if args.datasets_path:
         if not os.path.isdir(args.datasets_path):
             raise ValueError(
@@ -226,6 +221,7 @@ if __name__ == "__main__":
         signal.signal(signal.SIGINT, terminate_processes)
 
         for dataset_path in dataset_paths:
+            version_postfix = os.path.basename(dataset_path) + "_"
             process = subprocess.Popen(
                 [
                     "python",
@@ -235,7 +231,11 @@ if __name__ == "__main__":
                     args.model,
                     "--dataset_path",
                     dataset_path,
-                    *(["-v", args.version] if args.version else []),
+                    *(
+                        ["-v", args.version + version_postfix]
+                        if args.version
+                        else [version_postfix]
+                    ),
                     "-p",
                     *(["-n"] if args.new else []),
                 ],
