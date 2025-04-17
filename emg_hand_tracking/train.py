@@ -104,7 +104,7 @@ def run_many(
                 "emg_hand_tracking.train",
                 "--model",
                 model,
-                "--dataset_path",
+                "-d",
                 dataset_path,
                 *(["-v", run_prefix] if run_prefix != "" else []),
                 "-p",
@@ -234,12 +234,12 @@ if __name__ == "__main__":
                     "emg_hand_tracking.train",
                     "--model",
                     args.model,
-                    "--dataset_path",
+                    "-d",
                     dataset_path,
                     *(
                         ["-v", args.version + version_postfix]
                         if args.version
-                        else [version_postfix]
+                        else ["-v", version_postfix]
                     ),
                     "-p",
                     *(["-n"] if args.new else []),
