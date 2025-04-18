@@ -29,7 +29,7 @@ def run_single(
         emg_samples_per_frame=EMG_SAMPLES_PER_FRAME,
         frames_per_item=100,
         sample_ratio=0.1,
-        batch_size=128,
+        batch_size=256,
     )
 
     emg_channels = data_module.emg_channels
