@@ -1,4 +1,4 @@
-from typing import Any, Dict, final
+from typing import Any, Dict
 from emg2pose.kinematics import forward_kinematics, load_default_hand_model
 import torch
 import torch.nn as nn
