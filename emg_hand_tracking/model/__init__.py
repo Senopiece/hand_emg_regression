@@ -81,7 +81,7 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-2)
+        return torch.optim.Adam(self.parameters(), lr=1e-3)
 
 
 EMG_SAMPLES_PER_FRAME = 16  # 120 predictions/sec
