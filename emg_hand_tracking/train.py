@@ -63,11 +63,11 @@ def run_single(
                 mode="min",
                 enable_version_counter=False,
             ),
-            # EarlyStopping(
-            #     monitor="val_loss",
-            #     patience=30,
-            #     mode="min",
-            # ),
+            EarlyStopping(
+                monitor="val_loss",
+                patience=50,
+                mode="min",
+            ),
         ],
     )
 
