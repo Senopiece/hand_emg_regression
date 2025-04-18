@@ -81,13 +81,17 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters())
 
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer,
-            T_max=self.trainer.estimated_stepping_batches,  # type: ignore
-            eta_min=1e-6,
-        )
+        inflection_step = 100
+        start = 1e-2
+        end = 4 * 1e-4
+        decay_rate = 1e-2
+
+        def lr_lambda(step):
+            return (start - end) * (decay_rate ** (step / inflection_step)) + end
+
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
         scheduler_config = {
             "scheduler": scheduler,
