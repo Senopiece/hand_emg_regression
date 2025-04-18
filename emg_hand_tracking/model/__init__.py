@@ -86,7 +86,7 @@ class Model(pl.LightningModule):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
             T_max=self.trainer.estimated_stepping_batches,  # type: ignore
-            eta_min=1e-4,
+            eta_min=1e-6,
         )
 
         scheduler_config = {
