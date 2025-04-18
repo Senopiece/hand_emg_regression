@@ -81,7 +81,17 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-4)
+        optimizer = torch.optim.Adam(self.parameters(), lr=0.1)
+        scheduler = {
+            "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode="min",
+                factor=0.1,
+                patience=10,
+            ),
+            "monitor": "val_loss",
+        }
+        return [optimizer], [scheduler]
 
 
 EMG_SAMPLES_PER_FRAME = 16  # 120 predictions/sec
