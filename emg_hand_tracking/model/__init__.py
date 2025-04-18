@@ -81,24 +81,7 @@ class Model(pl.LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters())
-
-        inflection_step = 100
-        start = 1e-2
-        end = 4 * 1e-4
-        decay_rate = 1e-2
-
-        def lr_lambda(step):
-            return (start - end) * (decay_rate ** (step / inflection_step)) + end
-
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
-
-        scheduler_config = {
-            "scheduler": scheduler,
-            "interval": "step",
-        }
-
-        return [optimizer], [scheduler_config]
+        return torch.optim.Adam(self.parameters(), lr=1e-5)
 
 
 EMG_SAMPLES_PER_FRAME = 16  # 120 predictions/sec
