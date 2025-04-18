@@ -86,7 +86,7 @@ class Model(pl.LightningModule):
             "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer,
                 mode="min",
-                factor=0.5,
+                factor=0.1,
                 patience=10,
             ),
             "monitor": "val_loss",
