@@ -1,8 +1,10 @@
-from typing import Any, Dict
+from typing import Any, Dict, NamedTuple
 from emg2pose.kinematics import forward_kinematics, load_default_hand_model
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
+
+from emg_hand_tracking.dataset import EmgWithHand
 
 from .util import handmodel2device
 from .modules import (
@@ -14,6 +16,12 @@ from .modules import (
     WindowedApply,
     WeightedMean,
 )
+
+
+# Input to the model
+class InitialStateAndEmg(NamedTuple):
+    emg: torch.Tensor  # ({B}, T*W, C), float32, T >= I
+    initial_poses: torch.Tensor  # ({B}, I, 20), float32
 
 
 class Model(pl.LightningModule):
@@ -63,16 +71,34 @@ class Model(pl.LightningModule):
     def impls(cls):
         return cls._impls.keys()
 
-    def _forward(self, emg, initial_poses):
+    def _forward(self, emg: torch.Tensor, initial_poses: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError()
 
-    def forward(self, x):
+    def forward(self, *args, **kwargs):
         """
-        x["emg"]: (B, T, C) - requires T >= frames_per_window*emg_samples_per_frame and be devisable by emg_samples_per_frame
-        x["initial_poses"]: (B, frames_per_window, 20) - the initial known hand pose
-        returns S = T / emg_samples_per_frame - frames_per_window next predicted joints in shape (B, S, 20)
+        some initial emg and poses are provided with some further emg,
+        models estimates hand poses corresponding to further emg
+        and returns these as ({B}, T + 1 - I, 20)
         """
-        return self._forward(x["emg"], x["initial_poses"])
+        # Extract x from three different types of inputs:
+        # - forward(emg=..., initial_poses=...)
+        # - forward(InitialStateAndEmg(emg=..., initial_poses=...))
+        # - forward({"emg": ..., "initial_poses":...})
+        if len(args) != 0:
+            x: InitialStateAndEmg | Dict[str, torch.Tensor] = args[0]
+            if not isinstance(x, InitialStateAndEmg):
+                x = InitialStateAndEmg(**x)
+        else:
+            x = InitialStateAndEmg(**kwargs)
+
+        if len(x.emg.shape) == 2:
+            # handle not batched input, return also not batched
+            return self._forward(
+                x.emg.unsqueeze(0),
+                x.initial_poses.unsqueeze(0),
+            ).squeeze(0)
+        else:
+            return self._forward(x.emg, x.initial_poses)
 
     def training_step(self, batch, batch_idx):
         return self._step("train", batch)
@@ -185,7 +211,7 @@ class V42(Model):
 
         self.filter = WeightedMean(self.frames_per_window + 1)
 
-    def _forward(self, emg, initial_poses):
+    def _forward(self, emg: torch.Tensor, initial_poses: torch.Tensor):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
         windows = self.emg_feature_extract(emg).permute(1, 0, 2)  # (W, B, E)
 
@@ -258,9 +284,9 @@ class V42(Model):
         # Final output shape: (B, S, 20)
         return torch.stack(outputs, dim=1)
 
-    def _step(self, name: str, batch):
-        emg = batch["emg"]
-        poses = batch["poses"]
+    def _step(self, name: str, batch: EmgWithHand):
+        emg = batch.emg
+        poses = batch.poses
 
         self.hm = handmodel2device(self.hm, self.device)
 
@@ -270,8 +296,12 @@ class V42(Model):
         # Ground truth (B, 20, S=full-frames_per_window)
         y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
 
-        x = {"emg": emg, "initial_poses": initial_poses}
-        y_hat = self(x).permute(0, 2, 1)  # (B, 20, S=full-frames_per_window)
+        y_hat = self.forward(
+            emg=emg,
+            initial_poses=initial_poses,
+        ).permute(
+            0, 2, 1
+        )  # (B, 20, S=full-frames_per_window)
 
         # Compute forward kinematics for predicted and ground truth poses.
         landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
