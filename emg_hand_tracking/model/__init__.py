@@ -29,7 +29,7 @@ class SubfeatureSettings(NamedTuple):
     stride: int = 3
 
     def windows(self, input_width: int):
-        if self.width - input_width:
+        if self.width > input_width:
             return 0
         return (input_width - self.width) // self.stride + 1
 
