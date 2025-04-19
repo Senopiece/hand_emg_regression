@@ -175,12 +175,6 @@ if __name__ == "__main__":
         help="Path to the emg2pose directory (can also be set via the DATASET_PATH environment variable)",
     )
     parser.add_argument(
-        "--datasets_path",
-        "-ds",
-        type=str,
-        help="Path to the directory containing multiple dataset paths",
-    )
-    parser.add_argument(
         "--version",
         "-v",
         type=str,
@@ -200,81 +194,12 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if args.datasets_path:
-        if not os.path.isdir(args.datasets_path):
-            raise ValueError(
-                f"The provided datasets_path '{args.datasets_path}' is not a valid directory."
-            )
-
-        dataset_paths = [
-            os.path.join(args.datasets_path, f)
-            for f in os.listdir(args.datasets_path)
-            if os.path.isfile(os.path.join(args.datasets_path, f))
-        ]
-        processes: List[Tuple[str, subprocess.Popen]] = []
-
-        def terminate_processes(signum, frame):
-            print("\nTerminating all processes...")
-            for _, p in processes:
-                p.terminate()
-            for _, p in processes:
-                p.wait()
-            exit(0)
-
-        signal.signal(signal.SIGINT, terminate_processes)
-
-        for dataset_path in dataset_paths:
-            filename = os.path.basename(dataset_path)
-            filename_without_extension = os.path.splitext(filename)[0]
-            version_postfix = filename_without_extension + "_"
-            process = subprocess.Popen(
-                [
-                    "python",
-                    "-m",
-                    "emg_hand_tracking.train",
-                    "--model",
-                    args.model,
-                    "-d",
-                    dataset_path,
-                    *(
-                        ["-v", args.version + version_postfix]
-                        if args.version
-                        else ["-v", version_postfix]
-                    ),
-                    "-p",
-                    *(["-n"] if args.new else []),
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-            processes.append((filename_without_extension, process))
-
-        try:
-            while processes:
-                for k in processes:
-                    name, p = k
-                    output = p.stdout.readline()  # type: ignore
-                    if output:
-                        print(f"{name} | {output.strip()}")
-                    if p.poll() is not None:  # Process has ended
-                        processes.remove(k)
-
-                        # Terminate all if any exited with non-zero exit code
-                        if p.returncode != 0:
-                            print(
-                                f"Process for dataset {name} exited with error code {p.returncode}."
-                            )
-                            terminate_processes(None, None)
-        except KeyboardInterrupt:
-            terminate_processes(None, None)
-    else:
-        sys.exit(
-            main(
-                run_prefix=args.version if args.version else "",
-                model_names=args.model.split(","),
-                enable_progress_bar=not args.disable_progress_bar,
-                dataset_path=args.dataset_path,
-                cont=not args.new,
-            )
+    sys.exit(
+        main(
+            run_prefix=args.version if args.version else "",
+            model_names=args.model.split(","),
+            enable_progress_bar=not args.disable_progress_bar,
+            dataset_path=args.dataset_path,
+            cont=not args.new,
         )
+    )
