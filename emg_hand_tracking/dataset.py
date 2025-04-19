@@ -239,29 +239,25 @@ def load_recordings(path: str, emg_samples_per_frame: int = W):
 class RecordingSlicing(Dataset):
     def __init__(
         self,
-        segment: HandEmgRecordingSegment,
+        segment: HandEmgTorchRecordingSegment,  # type: ignore
         frames_per_item: int,
     ):
         self.frames_per_item = frames_per_item
-        self.segment = segment.to_torch()
+
+        self.emg_per_frame = segment.couples[0].emg.shape[0]
+        self.emg = segment.emg
+        self.frames = segment.frames
 
     def __len__(self):
-        res = len(self.segment.couples) - self.frames_per_item + 1
+        res = (self.emg.shape[0] // self.emg_per_frame) - self.frames_per_item + 1
         return res if res > 0 else 0
 
     def __getitem__(self, idx):
         u = idx + self.frames_per_item
 
-        s = self.segment.couples[idx:u]
-
-        if u == len(self.segment.couples):
-            f = self.segment.sigma
-        else:
-            f = self.segment.couples[u].frame
-
         return {
-            "emg": torch.concat([e.emg for e in s]),
-            "poses": torch.stack([e.frame for e in s] + [f]),
+            "emg": self.emg[idx * self.emg_per_frame : u * self.emg_per_frame],
+            "poses": self.frames[idx : u + 1],
         }
 
 
@@ -367,7 +363,7 @@ class DataModule(LightningDataModule):
             for segment in tqdm(segments, desc=f"Transforming {name} dataset"):
                 slices.append(
                     RecordingSlicing(
-                        segment,
+                        segment.to_torch(),
                         frames_per_item=self.frames_per_item,
                     )
                 )
