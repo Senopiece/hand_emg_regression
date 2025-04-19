@@ -306,7 +306,9 @@ class DataModule(LightningDataModule):
         frames_per_item: int,
         emg_samples_per_frame: int = W,  # frames will be resampled if differs from W
         batch_size: int = 64,
-        sample_ratio: float = 0.2,
+        train_sample_ratio: float = 0.2,
+        val_sample_ratio: float = 0.5,
+        val_percent: float = 1,  # percentage of recordings tails of which will be used for validation
         val_window: int = 248,  # in frames
     ):
         super().__init__()
@@ -314,16 +316,37 @@ class DataModule(LightningDataModule):
         self.emg_samples_per_frame = emg_samples_per_frame
         self.frames_per_item = frames_per_item
         self.batch_size = batch_size
-        self.sample_ratio = sample_ratio
+        self.train_sample_ratio = train_sample_ratio
+        self.val_sample_ratio = val_sample_ratio
         self.val_window = val_window
+        self.val_percent = val_percent
 
     def _segments(self, stage=None):
         recordings = load_recordings(self.path, self.emg_samples_per_frame)
 
-        # split: val - the last X frames from each recording
+        # split: val - the last X frames from some recordings
         train_segments: List[HandEmgRecordingSegment] = []
         val_segments: List[HandEmgRecordingSegment] = []
-        for rec in recordings:
+
+        # filter bad recordings (recording is bad if val window is >25% of it)
+        recordings = [
+            rec
+            for rec in recordings
+            if 4 * self.val_window < sum(len(segment.couples) for segment in rec)
+        ]
+
+        # some of recordings need to be discarded from filling val to maintain val_percent
+        train_idxs: List[int] = torch.randperm(len(recordings))[
+            : int((1 - self.val_percent) * len(recordings))
+        ].tolist()
+
+        for i, rec in enumerate(recordings):
+            # force use for train
+            if i in train_idxs:
+                train_segments.extend(rec)
+                continue
+
+            # use for validation
             acc_window = 0
             for segment in reversed(rec):
                 acc_window += len(segment.couples)
@@ -379,7 +402,7 @@ class DataModule(LightningDataModule):
             batch_size=self.batch_size,
             sampler=ConcatSamplerPerDataset(
                 dataset,
-                sample_ratio=self.sample_ratio,
+                sample_ratio=self.train_sample_ratio,
             ),
             num_workers=0,
         )
@@ -391,7 +414,7 @@ class DataModule(LightningDataModule):
             batch_size=self.batch_size,
             sampler=ConcatSamplerPerDataset(
                 dataset,
-                sample_ratio=self.sample_ratio,
+                sample_ratio=self.val_sample_ratio,
                 seed=42,
             ),
             shuffle=False,

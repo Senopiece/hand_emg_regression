@@ -28,7 +28,9 @@ def run_single(
         path=dataset_path,
         emg_samples_per_frame=EMG_SAMPLES_PER_FRAME,
         frames_per_item=100,
-        sample_ratio=0.1,
+        train_sample_ratio=0.1,
+        val_sample_ratio=0.5,
+        val_window=248,
         batch_size=128,
     )
 
