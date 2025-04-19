@@ -1,8 +1,8 @@
-from typing import Any, Dict, NamedTuple
+from typing import Dict, NamedTuple
 from emg2pose.kinematics import forward_kinematics, load_default_hand_model
+from pytorch_lightning import LightningModule
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
 
 from emg_hand_tracking.dataset import EmgWithHand
 
@@ -24,115 +24,40 @@ class InitialStateAndEmg(NamedTuple):
     initial_poses: torch.Tensor  # ({B}, I, 20), float32
 
 
-class Model(pl.LightningModule):
-    _impls: Dict[str, type["Model"]] = {}
+class SubfeatureSettings(NamedTuple):
+    width: int = 7
+    stride: int = 3
 
-    @staticmethod
-    def _resolve_immediate_name(c: type):
-        if c.__doc__:
-            docstring = c.__doc__.strip()
-            assert (
-                docstring.isalnum()
-            ), f"Class docstring must be alphanumeric: {docstring}"
-            return docstring
-        else:
-            if c.__name__.startswith("_"):
-                return ""
-            return c.__name__
-
-    @staticmethod
-    def _resolve_name(c: type):
-        prefix = "_".join(
-            Model._resolve_immediate_name(base)
-            for base in c.__bases__
-            if base.__name__ != "Model" and base.__name__ != "object"
-        )
-        suffix = Model._resolve_immediate_name(c)
-        return f"{prefix}_{suffix}" if prefix != "" else suffix
-
-    def __init_subclass__(cls, **kwargs: Any):
-        super().__init_subclass__(**kwargs)
-        if not cls.__name__.startswith("_"):
-            cls._impls[cls.name()] = cls
-
-    @classmethod
-    def name(cls):
-        return Model._resolve_name(cls)
-
-    @classmethod
-    def construct(cls, name):
-        return cls._impls[name]()
-
-    @classmethod
-    def construct_from_checkpoint(cls, name, ckpt):
-        return cls._impls[name].load_from_checkpoint(ckpt)
-
-    @classmethod
-    def impls(cls):
-        return cls._impls.keys()
-
-    def _forward(self, emg: torch.Tensor, initial_poses: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError()
-
-    def forward(self, *args, **kwargs):
-        """
-        some initial emg and poses are provided with some further emg,
-        models estimates hand poses corresponding to further emg
-        and returns these as ({B}, T + 1 - I, 20)
-        """
-        # Extract x from three different types of inputs:
-        # - forward(emg=..., initial_poses=...)
-        # - forward(InitialStateAndEmg(emg=..., initial_poses=...))
-        # - forward({"emg": ..., "initial_poses":...})
-        if len(args) != 0:
-            x: InitialStateAndEmg | Dict[str, torch.Tensor] = args[0]
-            if not isinstance(x, InitialStateAndEmg):
-                x = InitialStateAndEmg(**x)
-        else:
-            x = InitialStateAndEmg(**kwargs)
-
-        if len(x.emg.shape) == 2:
-            # handle not batched input, return also not batched
-            return self._forward(
-                x.emg.unsqueeze(0),
-                x.initial_poses.unsqueeze(0),
-            ).squeeze(0)
-        else:
-            return self._forward(x.emg, x.initial_poses)
-
-    def training_step(self, batch, batch_idx):
-        return self._step("train", batch)
-
-    def validation_step(self, batch, batch_idx):
-        self._step("val", batch)
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)
+    def windows(self, input_width: int):
+        if self.width - input_width:
+            return 0
+        return (input_width - self.width) // self.stride + 1
 
 
-EMG_SAMPLES_PER_FRAME = 16  # 120 predictions/sec
-emg_channels = 16
+class SubfeaturesSettings(NamedTuple):
+    mx: SubfeatureSettings = SubfeatureSettings()
+    std: SubfeatureSettings = SubfeatureSettings()
 
 
-class V42(Model):
-    def __init__(self):
+class Model(LightningModule):
+    def __init__(
+        self,
+        channels: int,
+        emg_samples_per_frame: int,
+        slices: int = 32,
+        patterns: int = 64,
+        frames_per_window: int = 20,
+        slice_width: int = 34,
+        subfeatures: SubfeaturesSettings = SubfeaturesSettings(),
+        synapse_features: int = 256,
+        muscle_features: int = 64,
+        predict_hidden_layer_size: int = 128,
+    ):
         super().__init__()
 
-        slices = 32
-        patterns = 64
-
-        pattern_subfeature_windows = 10  # TODO: mb separate for subfeatures
-        pattern_subfeature_width = 7
-        pattern_subfeature_stride = 3
-
-        slice_width = (
-            pattern_subfeature_width
-            + (pattern_subfeature_windows - 1) * pattern_subfeature_stride
-        )
-
-        self.channels = emg_channels
-        self.emg_samples_per_frame = EMG_SAMPLES_PER_FRAME
-        self.frames_per_window = 20
+        self.channels = channels
+        self.emg_samples_per_frame = emg_samples_per_frame
+        self.frames_per_window = frames_per_window
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20
             + (self.frames_per_window - 1) * 20
@@ -167,21 +92,25 @@ class V42(Model):
                     ),
                     nn.Sequential(
                         WindowedApply(
-                            window_len=pattern_subfeature_width,
-                            step=pattern_subfeature_stride,
+                            window_len=subfeatures.mx.width,
+                            step=subfeatures.mx.stride,
                             # -> (B, slices, pattern_subfeature_width)
                             f=StdDev(),  # -> (B, slices)
                         ),  # -> (B, W, slices)
-                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
+                        WeightedMean(
+                            subfeatures.mx.windows(slice_width)
+                        ),  # -> (B, slices)
                     ),
                     nn.Sequential(
                         WindowedApply(
-                            window_len=pattern_subfeature_width,
-                            step=pattern_subfeature_stride,
+                            window_len=subfeatures.std.width,
+                            step=subfeatures.std.stride,
                             # -> (B, slices, pattern_subfeature_width)
                             f=Max(),  # -> (B, slices)
                         ),  # -> (B, W, slices)
-                        WeightedMean(pattern_subfeature_windows),  # -> (B, slices)
+                        WeightedMean(
+                            subfeatures.std.windows(slice_width)
+                        ),  # -> (B, slices)
                     ),
                 ),
             ),
@@ -190,23 +119,23 @@ class V42(Model):
         self.synapse_feature_extract = nn.Sequential(
             nn.Linear(
                 slices * patterns + 2 * slices + self.pos_vel_acc_datasize,
-                256,
+                synapse_features,
             ),
             nn.ReLU(),
         )
 
         self.muscle_feature_extract = nn.Linear(
-            256 + self.pos_vel_acc_datasize,
-            64,
+            synapse_features + self.pos_vel_acc_datasize,
+            muscle_features,
         )
 
         self.predict = nn.Sequential(
             nn.Linear(
-                64 + self.pos_vel_acc_datasize,
-                128,
+                muscle_features + self.pos_vel_acc_datasize,
+                predict_hidden_layer_size,
             ),
             nn.ReLU(),
-            nn.Linear(128, 20),
+            nn.Linear(predict_hidden_layer_size, 20),
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
@@ -283,6 +212,41 @@ class V42(Model):
         # Stack all predictions along a new time dimension.
         # Final output shape: (B, S, 20)
         return torch.stack(outputs, dim=1)
+
+    def forward(self, *args, **kwargs):
+        """
+        some initial emg and poses are provided with some further emg,
+        models estimates hand poses corresponding to further emg
+        and returns these as ({B}, T + 1 - I, 20)
+        """
+        # Extract x from three different types of inputs:
+        # - forward(emg=..., initial_poses=...)
+        # - forward(InitialStateAndEmg(emg=..., initial_poses=...))
+        # - forward({"emg": ..., "initial_poses":...})
+        if len(args) != 0:
+            x: InitialStateAndEmg | Dict[str, torch.Tensor] = args[0]
+            if not isinstance(x, InitialStateAndEmg):
+                x = InitialStateAndEmg(**x)
+        else:
+            x = InitialStateAndEmg(**kwargs)
+
+        if len(x.emg.shape) == 2:
+            # handle not batched input, return also not batched
+            return self._forward(
+                x.emg.unsqueeze(0),
+                x.initial_poses.unsqueeze(0),
+            ).squeeze(0)
+        else:
+            return self._forward(x.emg, x.initial_poses)
+
+    def training_step(self, batch, batch_idx):
+        return self._step("train", batch)
+
+    def validation_step(self, batch, batch_idx):
+        self._step("val", batch)
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=1e-3)
 
     def _step(self, name: str, batch: EmgWithHand):
         emg = batch.emg
