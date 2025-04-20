@@ -44,17 +44,18 @@ class Model(LightningModule):
         self,
         channels: int,
         emg_samples_per_frame: int,
-        slices: int = 32,
-        patterns: int = 64,
-        frames_per_window: int = 20,
-        slice_width: int = 34,
-        subfeatures: SubfeaturesSettings = SubfeaturesSettings(),
-        synapse_features: int = 256,
-        muscle_features: int = 64,
-        predict_hidden_layer_size: int = 128,
+        slices: int,
+        patterns: int,
+        frames_per_window: int,
+        slice_width: int,
+        subfeatures: SubfeaturesSettings,
+        synapse_features: int,
+        muscle_features: int,
+        predict_hidden_layer_size: int,
         lr: float = 1e-3,
     ):
         super().__init__()
+        self.save_hyperparameters()
 
         self.lr = lr
 
