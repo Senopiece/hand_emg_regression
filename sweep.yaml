@@ -1,0 +1,83 @@
+method: bayes
+
+metric:
+  name: val_loss
+  goal: minimize
+
+early_terminate:
+  type: hyperband
+  min_iter: 10
+  eta: 2
+
+parameters:
+  emg_samples_per_frame:
+    values: [16, 32, 64]
+
+  slices:
+    distribution: int_uniform
+    min: 16
+    max: 64
+
+  patterns:
+    distribution: int_uniform
+    min: 16
+    max: 1024
+
+  frames_per_window:
+    values: [6, 10, 16, 24, 40, 60]
+
+  slice_width:
+    distribution: int_uniform
+    min: 8
+    max: 256
+
+  mx_width:
+    distribution: int_uniform
+    min: 2
+    max: 15
+
+  mx_stride:
+    distribution: int_uniform
+    min: 1
+    max: 9
+
+  std_width:
+    distribution: int_uniform
+    min: 2
+    max: 15
+
+  std_stride:
+    distribution: int_uniform
+    min: 1
+    max: 9
+
+  synapse_features:
+    distribution: int_uniform
+    min: 64
+    max: 1024
+
+  muscle_features:
+    values: [32, 64, 128]
+
+  predict_hidden_layer_size:
+    distribution: int_uniform
+    min: 64
+    max: 1024
+
+  batch_size:
+    values: [32, 64, 128]
+
+  lr:
+    values: [0.00001, 0.0001, 0.001, 0.01]
+
+command:
+  - ${env}
+  - ${interpreter}
+  - -m
+  - emg_hand_tracking.train
+  - -d
+  - datasets/s1.z
+  - -v
+  - s1
+  - -n
+  - ${args}
