@@ -119,6 +119,7 @@ class Model(LightningModule):
                 ),
             ),
         )  # -> (B, W, slices * patterns + 2 * slices), S=W
+        # TODO: try batch norm after emg_feature_extract
 
         self.synapse_feature_extract = nn.Sequential(
             nn.Linear(
@@ -287,11 +288,6 @@ class Model(LightningModule):
 
             sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
             loss += k * sq_delta.sum(dim=-1).mean()
-
-        # Add L1 regularization
-        l1_lambda = 1e-5
-        l1_loss = sum(param.abs().sum() for param in self.parameters())
-        loss += l1_lambda * l1_loss
 
         self.log(f"{name}_loss", loss)
         return loss
