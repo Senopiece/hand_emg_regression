@@ -196,7 +196,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--slices",
         type=int,
-        default=32,
+        default=35,
         help="Number of slices",
     )
     parser.add_argument(
@@ -208,25 +208,25 @@ if __name__ == "__main__":
     parser.add_argument(
         "--frames_per_window",
         type=int,
-        default=20,
+        default=10,
         help="Number of frames per window",
     )
     parser.add_argument(
         "--slice_width",
         type=int,
-        default=34,
+        default=88,
         help="Width of each slice",
     )
     parser.add_argument(
         "--mx_width",
         type=int,
-        default=7,
+        default=12,
         help="Width for mx subfeature",
     )
     parser.add_argument(
         "--mx_stride",
         type=int,
-        default=3,
+        default=4,
         help="Stride for mx subfeature",
     )
     parser.add_argument(
@@ -238,25 +238,25 @@ if __name__ == "__main__":
     parser.add_argument(
         "--std_stride",
         type=int,
-        default=3,
+        default=1,
         help="Stride for std subfeature",
     )
     parser.add_argument(
         "--synapse_features",
         type=int,
-        default=256,
+        default=520,
         help="Number of synapse features",
     )
     parser.add_argument(
         "--muscle_features",
         type=int,
-        default=64,
+        default=128,
         help="Number of muscle features",
     )
     parser.add_argument(
         "--predict_hidden_layer_size",
         type=int,
-        default=128,
+        default=256,
         help="Size of the hidden layer for prediction",
     )
     parser.add_argument(
