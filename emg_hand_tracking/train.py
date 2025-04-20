@@ -242,14 +242,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--recordings_usage",
         type=int,
-        default=32,
+        default=14,
         help="Limit number of recordings to use (in favour of bigger recordings)",
     )
     parser.add_argument(
         "--val_usage",
         type=int,
-        default=10,
-        help="Usage of validation data",
+        default=12,
+        help="Limit number of recordings of which tails use for val (in favour of bigger recordings)",
     )
     parser.add_argument(
         "--val_window",
