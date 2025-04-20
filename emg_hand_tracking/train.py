@@ -12,6 +12,20 @@ from .dataset import DataModule
 from .model import Model, SubfeatureSettings, SubfeaturesSettings
 
 
+class ParameterCountLimit(Callback):
+    def __init__(self, max_params: int = 5_000_000):
+        super().__init__()
+        self.max_params = max_params
+
+    def on_fit_start(self, trainer, pl_module):
+        total = sum(p.numel() for p in pl_module.parameters())
+        if total > self.max_params:
+            print(
+                f"\n❌  Model has {total:,} parameters (limit is {self.max_params:,}). Exiting."
+            )
+            sys.exit(1)
+
+
 class EpochTimeLimit(Callback):
     def __init__(self, max_epoch_time_seconds: float = 120.0):
         super().__init__()
@@ -113,6 +127,7 @@ def main(
             + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
         ),
         callbacks=[
+            ParameterCountLimit(max_params=5_000_000),
             ModelCheckpoint(
                 dirpath="checkpoints",
                 save_weights_only=True,
