@@ -127,6 +127,7 @@ class Model(LightningModule):
                 slices * patterns + 2 * slices + self.pos_vel_acc_datasize,
                 synapse_features,
             ),
+            nn.BatchNorm1d(synapse_features),
             nn.ReLU(),
         )
 
@@ -140,6 +141,7 @@ class Model(LightningModule):
                 muscle_features + self.pos_vel_acc_datasize,
                 predict_hidden_layer_size,
             ),
+            nn.BatchNorm1d(predict_hidden_layer_size),
             nn.ReLU(),
             nn.Linear(predict_hidden_layer_size, 20),
         )
