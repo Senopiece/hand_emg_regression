@@ -31,6 +31,7 @@ def main(
     frames_per_item: int,
     train_sample_ratio: float,
     val_sample_ratio: float,
+    recordings_usage: int,
     val_usage: int,
     val_window: int,
     batch_size: int,
@@ -44,6 +45,7 @@ def main(
         frames_per_item=frames_per_item,
         train_sample_ratio=train_sample_ratio,
         val_sample_ratio=val_sample_ratio,
+        recordings_usage=recordings_usage,
         val_usage=val_usage,
         val_window=val_window,
         batch_size=batch_size,
@@ -238,6 +240,12 @@ if __name__ == "__main__":
         help="Ratio of validation samples",
     )
     parser.add_argument(
+        "--recordings_usage",
+        type=int,
+        default=32,
+        help="Limit number of recordings to use (in favour of bigger recordings)",
+    )
+    parser.add_argument(
         "--val_usage",
         type=int,
         default=10,
@@ -285,6 +293,7 @@ if __name__ == "__main__":
         frames_per_item=args.frames_per_item,
         train_sample_ratio=args.train_sample_ratio,
         val_sample_ratio=args.val_sample_ratio,
+        recordings_usage=args.recordings_usage,
         val_usage=args.val_usage,
         val_window=args.val_window,
         batch_size=args.batch_size,

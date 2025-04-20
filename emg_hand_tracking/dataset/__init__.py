@@ -101,9 +101,10 @@ class DataModule(LightningDataModule):
             None | int
         ) = None,  # frames will be resampled if provided
         batch_size: int = 64,
+        recordings_usage: int = 32,  # number of biggest recordings to use
         train_sample_ratio: float = 0.2,
         val_sample_ratio: float = 0.5,
-        val_usage: float = 10,  # number of recordings tails of which will be used for validation
+        val_usage: float = 12,  # number of recordings tails of which will be used for validation
         val_window: int = 248,  # in frames
     ):
         super().__init__()
@@ -115,9 +116,18 @@ class DataModule(LightningDataModule):
         self.val_sample_ratio = val_sample_ratio
         self.val_window = val_window
         self.val_usage = val_usage
+        self.recordings_usage = recordings_usage
 
     def _segments(self, stage=None):
         recordings = load_recordings(self.path, self.emg_samples_per_frame)
+
+        # Sort recordings by their length in descending order
+        recordings.sort(
+            key=lambda rec: sum(len(segment.couples) for segment in rec), reverse=True
+        )
+
+        # Limit number of recordings to use
+        recordings = recordings[: self.recordings_usage]
 
         if self.val_usage > len(recordings):
             raise ValueError("Not enough recordings to make val split")
@@ -125,11 +135,6 @@ class DataModule(LightningDataModule):
         # split: val - the last X frames from some recordings
         train_segments: List[HandEmgRecordingSegment] = []
         val_segments: List[HandEmgRecordingSegment] = []
-
-        # Sort recordings by their length in descending order
-        recordings.sort(
-            key=lambda rec: sum(len(segment.couples) for segment in rec), reverse=True
-        )
 
         for i, rec in enumerate(recordings):
             # Use the tails of longest recordings for validation
