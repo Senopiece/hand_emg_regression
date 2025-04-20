@@ -245,7 +245,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--recordings_usage",
         type=int,
-        default=14,
+        default=32,
         help="Limit number of recordings to use (in favour of bigger recordings)",
     )
     parser.add_argument(
