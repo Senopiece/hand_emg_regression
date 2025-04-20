@@ -53,11 +53,13 @@ class Model(LightningModule):
         muscle_features: int,
         predict_hidden_layer_size: int,
         lr: float = 1e-3,
+        l2: float = 1e-5,
     ):
         super().__init__()
         self.save_hyperparameters()
 
         self.lr = lr
+        self.l2 = l2
 
         self.channels = channels
         self.emg_samples_per_frame = emg_samples_per_frame
@@ -119,7 +121,6 @@ class Model(LightningModule):
                 ),
             ),
         )  # -> (B, W, slices * patterns + 2 * slices), S=W
-        # TODO: try batch norm after emg_feature_extract
 
         self.synapse_feature_extract = nn.Sequential(
             nn.Linear(
@@ -251,7 +252,11 @@ class Model(LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
+        return torch.optim.Adam(
+            self.parameters(),
+            lr=self.lr,
+            weight_decay=self.l2,
+        )
 
     def _step(self, name: str, batch: EmgWithHand):
         emg = batch.emg

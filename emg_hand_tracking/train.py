@@ -69,6 +69,7 @@ def main(
     val_window: int,
     batch_size: int,
     lr: float,
+    l2: float,
 ):
     torch.set_float32_matmul_precision("medium")
 
@@ -91,6 +92,7 @@ def main(
 
         # Override parameters
         model.lr = lr
+        model.l2 = l2
     else:
         print(f"Making new {name}")
         model = Model(
@@ -114,6 +116,7 @@ def main(
             muscle_features=muscle_features,
             predict_hidden_layer_size=predict_hidden_layer_size,
             lr=lr,
+            l2=l2,
         )
 
     trainer = Trainer(
@@ -307,6 +310,12 @@ if __name__ == "__main__":
         default=1e-3,
         help="Learning rate",
     )
+    parser.add_argument(
+        "--l2",
+        type=float,
+        default=1e-5,
+        help="Weight decay",
+    )
 
     args = parser.parse_args()
 
@@ -336,4 +345,5 @@ if __name__ == "__main__":
         val_window=args.val_window,
         batch_size=args.batch_size,
         lr=args.lr,
+        l2=args.l2,
     )
