@@ -123,13 +123,6 @@ class DataModule(LightningDataModule):
         train_segments: List[HandEmgRecordingSegment] = []
         val_segments: List[HandEmgRecordingSegment] = []
 
-        # filter bad recordings (recording is bad if val window is >25% of it)
-        recordings = [
-            rec
-            for rec in recordings
-            if 4 * self.val_window < sum(len(segment.couples) for segment in rec)
-        ]
-
         # Sort recordings by their length in descending order
         recordings.sort(
             key=lambda rec: sum(len(segment.couples) for segment in rec), reverse=True
