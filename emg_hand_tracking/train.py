@@ -63,7 +63,7 @@ def main(
             ),
             EarlyStopping(
                 monitor="val_loss",
-                patience=20,
+                patience=10,
                 mode="min",
             ),
         ],
