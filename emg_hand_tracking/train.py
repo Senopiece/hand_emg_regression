@@ -228,13 +228,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--train_sample_ratio",
         type=float,
-        default=1.0,
+        default=0.1,
         help="Ratio of training samples",
     )
     parser.add_argument(
         "--val_sample_ratio",
         type=float,
-        default=0.9,
+        default=1.0,
         help="Ratio of validation samples",
     )
     parser.add_argument(
