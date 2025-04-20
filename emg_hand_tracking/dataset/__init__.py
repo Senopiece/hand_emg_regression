@@ -103,7 +103,7 @@ class DataModule(LightningDataModule):
         batch_size: int = 64,
         train_sample_ratio: float = 0.2,
         val_sample_ratio: float = 0.5,
-        val_percent: float = 1,  # percentage of recordings tails of which will be used for validation
+        val_usage: float = 10,  # number of recordings tails of which will be used for validation
         val_window: int = 248,  # in frames
     ):
         super().__init__()
@@ -114,7 +114,7 @@ class DataModule(LightningDataModule):
         self.train_sample_ratio = train_sample_ratio
         self.val_sample_ratio = val_sample_ratio
         self.val_window = val_window
-        self.val_percent = val_percent
+        self.val_usage = val_usage
 
     def _segments(self, stage=None):
         recordings = load_recordings(self.path, self.emg_samples_per_frame)
@@ -130,39 +130,41 @@ class DataModule(LightningDataModule):
             if 4 * self.val_window < sum(len(segment.couples) for segment in rec)
         ]
 
-        # some of recordings need to be discarded from filling val to maintain val_percent
-        train_idxs: List[int] = torch.randperm(len(recordings))[
-            : int((1 - self.val_percent) * len(recordings))
-        ].tolist()
+        # Sort recordings by their length in descending order
+        recordings.sort(
+            key=lambda rec: sum(len(segment.couples) for segment in rec), reverse=True
+        )
+
+        if self.val_usage > len(recordings):
+            raise ValueError("Not enough recordings to make val split")
 
         for i, rec in enumerate(recordings):
-            # force use for train
-            if i in train_idxs:
+            # Use the tails of longest recordings for validation
+            if i < self.val_usage:
+                acc_window = 0
+                for segment in reversed(rec):
+                    acc_window += len(segment.couples)
+                    if acc_window <= self.val_window:
+                        val_segments.append(segment)
+                    elif acc_window - len(segment.couples) >= self.val_window:
+                        train_segments.append(segment)
+                    else:
+                        split_idx = acc_window - self.val_window
+                        train_segments.append(
+                            HandEmgRecordingSegment(
+                                couples=segment.couples[:split_idx],
+                                sigma=segment.couples[split_idx].frame,
+                            )
+                        )
+                        val_segments.append(
+                            HandEmgRecordingSegment(
+                                couples=segment.couples[split_idx:],
+                                sigma=segment.sigma,
+                            )
+                        )
+            else:
+                # Use the remaining recordings for training
                 train_segments.extend(rec)
-                continue
-
-            # use for validation
-            acc_window = 0
-            for segment in reversed(rec):
-                acc_window += len(segment.couples)
-                if acc_window <= self.val_window:
-                    val_segments.append(segment)
-                elif acc_window - len(segment.couples) >= self.val_window:
-                    train_segments.append(segment)
-                else:
-                    split_idx = acc_window - self.val_window
-                    train_segments.append(
-                        HandEmgRecordingSegment(
-                            couples=segment.couples[:split_idx],
-                            sigma=segment.couples[split_idx].frame,
-                        )
-                    )
-                    val_segments.append(
-                        HandEmgRecordingSegment(
-                            couples=segment.couples[split_idx:],
-                            sigma=segment.sigma,
-                        )
-                    )
 
         return train_segments, val_segments
 
