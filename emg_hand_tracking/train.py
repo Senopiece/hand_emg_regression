@@ -55,6 +55,9 @@ def main(
     if cont and os.path.exists(ckpt_path):
         print(f"Loading {ckpt_path}")
         model = Model.load_from_checkpoint(ckpt_path)
+
+        # Override parameters
+        model.lr = lr
     else:
         print(f"Making new {name}")
         model = Model(
