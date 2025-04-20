@@ -15,6 +15,7 @@ def main(
     enable_progress_bar: bool,
     dataset_path: str,
     cont: bool,
+    fast_dev_run: bool,
 ):
     torch.set_float32_matmul_precision("medium")
 
@@ -67,6 +68,7 @@ def main(
                 mode="min",
             ),
         ],
+        fast_dev_run=fast_dev_run,
     )
 
     trainer.fit(
@@ -103,6 +105,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable the progress bar, is forcedly disabled for running multiple",
     )
+    parser.add_argument(
+        "--check",
+        "-c",
+        action="store_true",
+        help="Run a quick test of the training loop",
+    )
     args = parser.parse_args()
 
     main(
@@ -110,4 +118,5 @@ if __name__ == "__main__":
         enable_progress_bar=not args.disable_progress_bar,
         dataset_path=args.dataset_path,
         cont=not args.new,
+        fast_dev_run=args.check,
     )
