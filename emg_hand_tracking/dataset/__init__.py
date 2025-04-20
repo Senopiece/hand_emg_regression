@@ -119,6 +119,9 @@ class DataModule(LightningDataModule):
     def _segments(self, stage=None):
         recordings = load_recordings(self.path, self.emg_samples_per_frame)
 
+        if self.val_usage > len(recordings):
+            raise ValueError("Not enough recordings to make val split")
+
         # split: val - the last X frames from some recordings
         train_segments: List[HandEmgRecordingSegment] = []
         val_segments: List[HandEmgRecordingSegment] = []
@@ -127,9 +130,6 @@ class DataModule(LightningDataModule):
         recordings.sort(
             key=lambda rec: sum(len(segment.couples) for segment in rec), reverse=True
         )
-
-        if self.val_usage > len(recordings):
-            raise ValueError("Not enough recordings to make val split")
 
         for i, rec in enumerate(recordings):
             # Use the tails of longest recordings for validation
