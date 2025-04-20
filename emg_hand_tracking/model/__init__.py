@@ -52,8 +52,11 @@ class Model(LightningModule):
         synapse_features: int = 256,
         muscle_features: int = 64,
         predict_hidden_layer_size: int = 128,
+        lr: float = 1e-3,
     ):
         super().__init__()
+
+        self.lr = lr
 
         self.channels = channels
         self.emg_samples_per_frame = emg_samples_per_frame
@@ -246,7 +249,7 @@ class Model(LightningModule):
         self._step("val", batch)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
 
     def _step(self, name: str, batch: EmgWithHand):
         emg = batch.emg

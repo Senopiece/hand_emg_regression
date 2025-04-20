@@ -34,6 +34,7 @@ def main(
     val_usage: int,
     val_window: int,
     batch_size: int,
+    lr: float,
 ):
     torch.set_float32_matmul_precision("medium")
 
@@ -74,6 +75,7 @@ def main(
             synapse_features=synapse_features,
             muscle_features=muscle_features,
             predict_hidden_layer_size=predict_hidden_layer_size,
+            lr=lr,
         )
 
     trainer = Trainer(
@@ -253,6 +255,12 @@ if __name__ == "__main__":
         default=128,
         help="Batch size",
     )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=1e-3,
+        help="Learning rate",
+    )
 
     args = parser.parse_args()
 
@@ -280,4 +288,5 @@ if __name__ == "__main__":
         val_usage=args.val_usage,
         val_window=args.val_window,
         batch_size=args.batch_size,
+        lr=args.lr,
     )
