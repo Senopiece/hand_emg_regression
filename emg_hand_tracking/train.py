@@ -1,6 +1,8 @@
 import os
 import argparse
-from pytorch_lightning import Trainer
+import sys
+import time
+from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 from datetime import timezone, datetime
@@ -8,6 +10,23 @@ import torch
 
 from .dataset import DataModule
 from .model import Model, SubfeatureSettings, SubfeaturesSettings
+
+
+class EpochTimeLimit(Callback):
+    def __init__(self, max_epoch_time_seconds: float = 120.0):
+        super().__init__()
+        self.max_epoch_time = max_epoch_time_seconds
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        self._start_time = time.time()
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        elapsed = time.time() - self._start_time
+        if elapsed > self.max_epoch_time:
+            print(
+                f"\n⚠️  Epoch took {elapsed:.1f}s (limit is {self.max_epoch_time}s). Exiting."
+            )
+            sys.exit(1)
 
 
 def main(
@@ -108,6 +127,7 @@ def main(
                 patience=10,
                 mode="min",
             ),
+            EpochTimeLimit(120.0),
         ],
         fast_dev_run=fast_dev_run,
     )
