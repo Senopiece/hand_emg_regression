@@ -119,16 +119,20 @@ def main(
             l2=l2,
         )
 
+    logger = None
+    if not fast_dev_run:
+        logger = WandbLogger(
+            project="emg-hand-regression",
+            version=name
+            + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
+        )
+
     trainer = Trainer(
         max_epochs=200,
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
         enable_progress_bar=enable_progress_bar,
-        logger=WandbLogger(
-            project="emg-hand-regression",
-            version=name
-            + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
-        ),
+        logger=logger,
         callbacks=[
             ParameterCountLimit(max_params=5_000_000),
             ModelCheckpoint(
