@@ -20,21 +20,6 @@ parameters:
     min: 16
     max: 1024
 
-  synapse_features:
-    distribution: int_uniform
-    min: 64
-    max: 1024
-
-  muscle_features:
-    distribution: int_uniform
-    min: 32
-    max: 128
-
-  predict_hidden_layer_size:
-    distribution: int_uniform
-    min: 64
-    max: 1024
-
 command:
   - ${env}
   - ${interpreter}
