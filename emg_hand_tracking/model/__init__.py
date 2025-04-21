@@ -12,6 +12,7 @@ from .modules import (
     LearnablePatternSimilarity,
     Max,
     Parallel,
+    Permute,
     StdDev,
     WindowedApply,
     WeightedMean,
@@ -82,9 +83,7 @@ class Model(LightningModule):
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
             f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.ZeroPad1d(
-                    slice_width // 2
-                ),  # happens to be not needed, mb remove later
+                nn.ZeroPad1d(slice_width // 2),
                 ExtractLearnableSlices(
                     n=slices, width=slice_width
                 ),  # -> (B, slices, slice_width)
@@ -96,6 +95,12 @@ class Model(LightningModule):
                         nn.Flatten(),  # -> (B, slices*patterns)
                         nn.ReLU(),
                     ),
+                    nn.Sequential(
+                        Permute(0, 2, 1),
+                        WeightedMean(slice_width),
+                    ),  # -> (B, slices)
+                    Max(),  # -> (B, slices)
+                    StdDev(),  # -> (B, slices)
                     nn.Sequential(
                         WindowedApply(
                             window_len=subfeatures.mx.width,
@@ -120,14 +125,18 @@ class Model(LightningModule):
                     ),
                 ),
             ),
-        )  # -> (B, W, slices * patterns + 2 * slices), S=W
+        )  # -> (B, W, slices * patterns + (N-1) * slices), S=W
+
+        parallel_layer = self.emg_feature_extract.f[2]  # type: ignore
+        subfeatures_count = len(parallel_layer.modules_list) - 1
 
         self.synapse_feature_extract = nn.Sequential(
             nn.Linear(
-                slices * patterns + 2 * slices + self.pos_vel_acc_datasize,
+                slices * patterns
+                + subfeatures_count * slices
+                + self.pos_vel_acc_datasize,
                 synapse_features,
             ),
-            nn.BatchNorm1d(synapse_features),
             nn.ReLU(),
         )
 
@@ -141,7 +150,6 @@ class Model(LightningModule):
                 muscle_features + self.pos_vel_acc_datasize,
                 predict_hidden_layer_size,
             ),
-            nn.BatchNorm1d(predict_hidden_layer_size),
             nn.ReLU(),
             nn.Linear(predict_hidden_layer_size, 20),
         )
