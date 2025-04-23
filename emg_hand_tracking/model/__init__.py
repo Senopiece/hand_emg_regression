@@ -6,7 +6,7 @@ import torch.nn as nn
 
 from emg_hand_tracking.dataset import EmgWithHand
 
-from .util import handmodel2device
+from .util import L, L_3, forward_hand_kinematics, handmodel2device
 from .modules import (
     ExtractLearnableSlices,
     LearnablePatternSimilarity,
@@ -22,7 +22,7 @@ from .modules import (
 # Input to the model
 class InitialStateAndEmg(NamedTuple):
     emg: torch.Tensor  # ({B}, T*W, C), float32, T >= I
-    initial_poses: torch.Tensor  # ({B}, I, 20), float32
+    initial_poses: torch.Tensor  # ({B}, I, L, 3), float32
 
 
 class SubfeatureSettings(NamedTuple):
@@ -66,9 +66,9 @@ class Model(LightningModule):
         self.emg_samples_per_frame = emg_samples_per_frame
         self.frames_per_window = frames_per_window
         self.pos_vel_acc_datasize = (
-            self.frames_per_window * 20
-            + (self.frames_per_window - 1) * 20
-            + (self.frames_per_window - 2) * 20
+            self.frames_per_window * L_3
+            + (self.frames_per_window - 1) * L_3
+            + (self.frames_per_window - 2) * L_3
         )
 
         self.hm = load_default_hand_model()
@@ -151,7 +151,7 @@ class Model(LightningModule):
                 predict_hidden_layer_size,
             ),
             nn.ReLU(),
-            nn.Linear(predict_hidden_layer_size, 20),
+            nn.Linear(predict_hidden_layer_size, L_3),
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
@@ -162,16 +162,16 @@ class Model(LightningModule):
 
         outputs = []
         for emg_features in windows:
-            # (B, frames_per_window-1, 20)
+            # (B, frames_per_window-1, L, 3)
             initial_poses_vels = initial_poses.diff(dim=1)
-            # (B, frames_per_window-2, 20)
+            # (B, frames_per_window-2, L, 3)
             initial_poses_accels = initial_poses_vels.diff(dim=1)
 
-            # (B, frames_per_window * 20)
+            # (B, frames_per_window * L * 3)
             initial_poses_flat = initial_poses.flatten(start_dim=1)
-            # (B, (frames_per_window-1) * 20)
+            # (B, (frames_per_window-1)  * L * 3)
             initial_poses_vels_flat = initial_poses_vels.flatten(start_dim=1)
-            # (B, (frames_per_window-2) * 20)
+            # (B, (frames_per_window-2)  * L * 3)
             initial_poses_accels_flat = initial_poses_accels.flatten(start_dim=1)
 
             pos_vel_acc = torch.cat(
@@ -210,7 +210,7 @@ class Model(LightningModule):
                     ],
                     dim=1,
                 )
-            )
+            ).unflatten(1, (L, 3))
             pos_pred_update = self.filter(
                 torch.cat([initial_poses, pos_pred.unsqueeze(1)], dim=1)
             )
@@ -219,21 +219,21 @@ class Model(LightningModule):
 
             # Update joint context: remove the oldest frame (along the last dimension)
             # and append the new prediction.
-            # maintain initial_poses shape (B, frames_per_window, 20)
+            # maintain initial_poses shape (B, frames_per_window, L, 3)
             initial_poses = torch.cat(
-                [initial_poses[:, 1:, :], pos_pred_update.unsqueeze(1)],
+                [initial_poses[:, 1:, :, :], pos_pred_update.unsqueeze(1)],
                 dim=1,
             )
 
         # Stack all predictions along a new time dimension.
-        # Final output shape: (B, S, 20)
+        # Final output shape: (B, S, L, 3)
         return torch.stack(outputs, dim=1)
 
     def forward(self, *args, **kwargs):
         """
         some initial emg and poses are provided with some further emg,
         models estimates hand poses corresponding to further emg
-        and returns these as ({B}, T + 1 - I, 20)
+        and returns these as ({B}, T + 1 - I, L, 3)
         """
         # Extract x from three different types of inputs:
         # - forward(emg=..., initial_poses=...)
@@ -274,22 +274,24 @@ class Model(LightningModule):
 
         self.hm = handmodel2device(self.hm, self.device)
 
-        # (B, S=frames_per_window, 20)
-        initial_poses = poses[:, : self.frames_per_window, :]
+        poses = forward_hand_kinematics(poses, self.hm)
 
-        # Ground truth (B, 20, S=full-frames_per_window)
-        y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
+        # (B, S=frames_per_window, L, 3)
+        initial_poses = poses[:, : self.frames_per_window, :, :]
+
+        # Ground truth (B, S=full-frames_per_window, L, 3)
+        y = poses[:, self.frames_per_window :, :, :]
 
         y_hat = self.forward(
             emg=emg,
             initial_poses=initial_poses,
-        ).permute(
-            0, 2, 1
-        )  # (B, 20, S=full-frames_per_window)
+        )  # (B, S=full-frames_per_window, L, 3)
 
         # Compute forward kinematics for predicted and ground truth poses.
-        landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
-        landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
+        # landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
+        # landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
+        landmarks_pred = y_hat  # (B, S, L, 3)
+        landmarks_gt = y  # (B, S, L, 3)
 
         # First term is the right error
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)

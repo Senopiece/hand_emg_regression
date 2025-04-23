@@ -1,5 +1,5 @@
 import torch
-from emg2pose.kinematics import HandModel
+from emg2pose.kinematics import HandModel, forward_kinematics
 
 
 def handmodel2device(hm: HandModel, device):
@@ -27,3 +27,14 @@ def handmodel2device(hm: HandModel, device):
         ),
         joint_limits=(None if hm.joint_limits is None else hm.joint_limits.to(device)),
     )
+
+
+POINTS_SELECT = [5, 6, 7, 0, 8, 9, 10, 1, 11, 12, 13, 2, 14, 15, 16, 3, 17, 18, 19, 4]
+L = len(POINTS_SELECT)
+L_3 = L * 3
+
+
+# x: B, S, 20
+def forward_hand_kinematics(x: torch.Tensor, hand_model):
+    hands = forward_kinematics(x.permute(0, 2, 1), hand_model).squeeze(1)
+    return hands[:, :, POINTS_SELECT, :]  # B, S, L, 3
