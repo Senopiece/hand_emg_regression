@@ -7,7 +7,12 @@ from torch.utils.data import DataLoader, ConcatDataset
 from typing import List, NamedTuple
 from tqdm import tqdm
 
-from .recordings import HandEmgRecordingSegment, inspect_channels, load_recordings
+from .recordings import (
+    HandEmgRecordingSegment,
+    get_pose_format,
+    inspect_channels,
+    load_recordings,
+)
 
 
 # Having multiple workers will actually decrease the performance
@@ -170,6 +175,11 @@ class DataModule(LightningDataModule):
     def emg_channels(self):
         # Sneak peek into the dataset
         return inspect_channels(self.path)
+
+    @property
+    def pose_format(self):
+        # Sneak peek into the dataset
+        return get_pose_format(self.path)
 
     def setup(self, stage=None):
         train_segments, val_segments = self._segments()

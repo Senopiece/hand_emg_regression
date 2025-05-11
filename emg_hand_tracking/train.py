@@ -96,6 +96,7 @@ def main(
     else:
         print(f"Making new {name}")
         model = Model(
+            pose_format=data_module.pose_format,
             channels=data_module.emg_channels,
             emg_samples_per_frame=emg_samples_per_frame,
             slices=slices,

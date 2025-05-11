@@ -3,7 +3,8 @@ import numpy as np
 import yaml
 from typing import List, NamedTuple
 from tqdm import tqdm
-from scipy.interpolate import interp1d
+from scipy.interpolate import Akima1DInterpolator, interp1d
+
 
 W = 64
 
@@ -29,7 +30,37 @@ class HandEmgRecordingSegment(NamedTuple):
 HandEmgRecording = List[HandEmgRecordingSegment]
 
 
-def _resample(array: np.ndarray, target_size: int) -> np.ndarray:
+def _resample_akima(array: np.ndarray, target_size: int) -> np.ndarray:
+    """
+    Resample a signal array to a target size using Akima interpolation
+
+    Args:
+        array (np.ndarray): Input signal array of shape (n_samples, ...)
+        target_size (int): Desired number of samples in output
+
+    Returns:
+        np.ndarray: Resampled array of shape (target_size, ...)
+    """
+    x = np.linspace(0, 1, array.shape[0])
+    x_new = np.linspace(0, 1, target_size)
+
+    orig_shape = array.shape
+    n_channels = np.prod(orig_shape[1:]) if len(orig_shape) > 1 else 1
+
+    y = array.reshape(-1, n_channels)
+
+    resampled = np.zeros((target_size, n_channels))
+    for ch in range(n_channels):
+        akima = Akima1DInterpolator(x, y[:, ch])
+        resampled[:, ch] = akima(x_new)
+
+    if len(orig_shape) > 1:
+        resampled = resampled.reshape((target_size,) + orig_shape[1:])
+
+    return resampled
+
+
+def _resample_linear(array: np.ndarray, target_size: int) -> np.ndarray:
     """
     Resample a signal array to a target size using linear interpolation
 
@@ -64,6 +95,12 @@ def _resample(array: np.ndarray, target_size: int) -> np.ndarray:
     return resampled
 
 
+RESAMPLE_BY_POSE_FORMAT = {
+    "UmeTrack": _resample_linear,
+    "AnatomicAngles": _resample_akima,
+}
+
+
 def load_recordings(path: str, emg_samples_per_frame: int | None = None):
     """
     Load recordings from a zip file with the following structure:
@@ -95,6 +132,7 @@ def load_recordings(path: str, emg_samples_per_frame: int | None = None):
         # Read the metadata file to get the number of EMG channels (C)
         metadata = yaml.safe_load(archive.read("metadata.yml"))
         C = metadata["C"]
+        pose_format = metadata.get("pose_format", "AnatomicAngles")
 
         # Get all recording directories
         all_files = archive.namelist()
@@ -156,13 +194,15 @@ def load_recordings(path: str, emg_samples_per_frame: int | None = None):
 
             recordings.append(recording)
 
+    resample = RESAMPLE_BY_POSE_FORMAT[pose_format]
+
     # Handle resampling if needed
     if emg_samples_per_frame != W:
         for i in tqdm(range(len(recordings)), desc="Upsampling segments"):
             for j in range(len(recordings[i])):
                 rec = recordings[i][j]
 
-                frames = _resample(
+                frames = resample(
                     rec.frames,
                     (W // emg_samples_per_frame) * len(rec.couples) + 1,
                 )
@@ -194,3 +234,10 @@ def inspect_channels(path: str) -> int:
         if not isinstance(channels, int):
             raise ValueError("Dataset is malformed")
         return channels
+
+
+def get_pose_format(path: str):
+    with zipfile.ZipFile(path, mode="r") as archive:
+        return yaml.safe_load(archive.read("metadata.yml")).get(
+            "pose_format", "AnatomicAngles"
+        )

@@ -1,12 +1,11 @@
 from typing import Dict, NamedTuple
-from emg2pose.kinematics import forward_kinematics, load_default_hand_model
 from pytorch_lightning import LightningModule
 import torch
 import torch.nn as nn
 
 from emg_hand_tracking.dataset import EmgWithHand
 
-from .util import handmodel2device
+from .fk import FK_BY_POSE_FORMAT
 from .modules import (
     ExtractLearnableSlices,
     LearnablePatternSimilarity,
@@ -43,6 +42,7 @@ class SubfeaturesSettings(NamedTuple):
 class Model(LightningModule):
     def __init__(
         self,
+        pose_format: str,
         channels: int,
         emg_samples_per_frame: int,
         slices: int,
@@ -59,6 +59,8 @@ class Model(LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
+        self.forward_kinematics = FK_BY_POSE_FORMAT[pose_format]
+
         self.lr = lr
         self.l2 = l2
 
@@ -70,8 +72,6 @@ class Model(LightningModule):
             + (self.frames_per_window - 1) * 20
             + (self.frames_per_window - 2) * 20
         )
-
-        self.hm = load_default_hand_model()
 
         self.emg_window_length = self.emg_samples_per_frame * self.frames_per_window
 
@@ -272,24 +272,20 @@ class Model(LightningModule):
         emg = batch.emg
         poses = batch.poses
 
-        self.hm = handmodel2device(self.hm, self.device)
-
         # (B, S=frames_per_window, 20)
         initial_poses = poses[:, : self.frames_per_window, :]
 
         # Ground truth (B, 20, S=full-frames_per_window)
-        y = poses[:, self.frames_per_window :, :].permute(0, 2, 1)
+        y = poses[:, self.frames_per_window :, :]
 
         y_hat = self.forward(
             emg=emg,
             initial_poses=initial_poses,
-        ).permute(
-            0, 2, 1
-        )  # (B, 20, S=full-frames_per_window)
+        )  # (B, S=full-frames_per_window, 20)
 
         # Compute forward kinematics for predicted and ground truth poses.
-        landmarks_pred = forward_kinematics(y_hat, self.hm)  # (B, S, L, 3)
-        landmarks_gt = forward_kinematics(y, self.hm)  # (B, S, L, 3)
+        landmarks_pred = self.forward_kinematics(y_hat)  # (B, S, L, 3)
+        landmarks_gt = self.forward_kinematics(y)  # (B, S, L, 3)
 
         # First term is the right error
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
