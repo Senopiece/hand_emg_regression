@@ -149,6 +149,10 @@ def hand_landmarks_by_angles(
             joint = joint.add(v.mul(l))
             landmarks[:, base_idx + j + 1, :] = joint
 
-    return torch.cat(
+    landmarks = torch.cat(
         [landmarks[:, :1, :], landmarks[:, 2:, :]], dim=1
     )  # cut thumb base
+
+    landmarks *= 9.0  # scale to typical hand size
+
+    return landmarks
