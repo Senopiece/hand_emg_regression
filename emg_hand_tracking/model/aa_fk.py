@@ -153,6 +153,8 @@ def hand_landmarks_by_angles(
         [landmarks[:, :1, :], landmarks[:, 2:, :]], dim=1
     )  # cut thumb base
 
-    landmarks *= 9.0  # scale to typical hand size
+    landmarks *= (
+        90.0  # scale to typical hand size (now landmarks are in mm coordinates)
+    )
 
     return landmarks
