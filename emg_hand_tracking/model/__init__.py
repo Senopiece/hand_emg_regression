@@ -296,16 +296,20 @@ class Model(LightningModule):
 
         # First term is the right error
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        loss = 1.0 * sq_delta.sum(dim=-1).mean()
+        loss = 1.0 * sq_delta.sum(dim=-1).mean()  # TODO: to hypers
 
         # A term for differential follow (reduces jitter and helps to learn faster)
-        for k in [1.0, 1.0]:
+        for k in [1.0, 1.0]:  # TODO: to hypers
             # Differentiate
             landmarks_pred = landmarks_pred.diff(dim=1)  # (B, S, L, 3)
             landmarks_gt = landmarks_gt.diff(dim=1)  # (B, S, L, 3)
 
             sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
             loss += k * sq_delta.sum(dim=-1).mean()
+
+        # Add L1 regularization loss manually
+        l1_loss = sum(p.abs().sum() for p in self.parameters() if p.requires_grad)
+        loss += 1e-5 * l1_loss  # TODO: to hypers
 
         self.log(f"{name}_loss", loss)
         return loss
