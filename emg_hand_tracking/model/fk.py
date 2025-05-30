@@ -18,9 +18,9 @@ def aa_fk(
     y: torch.Tensor,  # (B, T, 20)
 ) -> torch.Tensor:  # (B, T, L, 3)
     B, T, D = y.shape  # D should be 20
-    y_flat = y.view(B * T, D)  # (B*T, 20)
+    y_flat = y.reshape(B * T, D)  # (B*T, 20)
     landmarks = hand_landmarks_by_angles(y_flat)  # (B*T, L, 3)
-    return landmarks.view(B, T, *landmarks.shape[1:])  # (B, T, L, 3)
+    return landmarks.reshape(B, T, *landmarks.shape[1:])  # (B, T, L, 3)
 
 
 FK_BY_POSE_FORMAT = {
