@@ -268,9 +268,16 @@ class Model(LightningModule):
             weight_decay=self.l2,
         )
 
-    def _step(self, name: str, batch: EmgWithHand):
-        emg = batch.emg
-        poses = batch.poses
+    def _step(self, name: str, batch: EmgWithHand | tuple):
+        if isinstance(batch, EmgWithHand):
+            emg = batch.emg
+            poses = batch.poses
+        elif isinstance(batch, tuple):
+            emg, poses = batch
+        else:
+            raise ValueError(
+                f"Expected batch to be EmgWithHand or tuple, got {type(batch)}"
+            )
 
         # (B, S=frames_per_window, 20)
         initial_poses = poses[:, : self.frames_per_window, :]
