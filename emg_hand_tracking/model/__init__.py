@@ -309,7 +309,7 @@ class Model(LightningModule):
 
         # Add L1 regularization loss manually
         l1_loss = sum(p.abs().sum() for p in self.parameters() if p.requires_grad)
-        loss += 1e-5 * l1_loss  # TODO: to hypers
+        loss += 1e-4 * l1_loss  # TODO: to hypers
 
         self.log(f"{name}_loss", loss)
         return loss

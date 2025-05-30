@@ -147,7 +147,7 @@ def main(
             ),
             EarlyStopping(
                 monitor="val_loss",
-                patience=10,
+                patience=100,
                 mode="min",
             ),
             EpochTimeLimit(120.0),
@@ -318,7 +318,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--l2",
         type=float,
-        default=1e-5,
+        default=1e-4,
         help="Weight decay",
     )
 
