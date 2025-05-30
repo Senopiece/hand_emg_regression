@@ -129,7 +129,7 @@ def main(
         )
 
     trainer = Trainer(
-        max_epochs=200,
+        max_epochs=1000,
         # gradient_clip_val=1.0,
         # gradient_clip_algorithm="norm",
         enable_progress_bar=enable_progress_bar,
