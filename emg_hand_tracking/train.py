@@ -71,6 +71,7 @@ def main(
     batch_size: int,
     lr: float,
     l2: float,
+    epoch_time_limit: float,
 ):
     torch.set_float32_matmul_precision("medium")
 
@@ -152,7 +153,7 @@ def main(
                 patience=100,
                 mode="min",
             ),
-            EpochTimeLimit(120.0),
+            EpochTimeLimit(epoch_time_limit),
         ],
         fast_dev_run=fast_dev_run,
     )
@@ -328,6 +329,12 @@ if __name__ == "__main__":
         default=1e-4,
         help="Weight decay",
     )
+    parser.add_argument(
+        "--epoch_time_limit",
+        type=float,
+        default=120.0,
+        help="Time limit for each epoch in seconds (default: 120) if exceeded, training will stop",
+    )
 
     args = parser.parse_args()
 
@@ -359,4 +366,5 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         lr=args.lr,
         l2=args.l2,
+        epoch_time_limit=args.epoch_time_limit,
     )
