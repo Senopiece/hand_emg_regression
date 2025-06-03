@@ -268,17 +268,8 @@ class Model(LightningModule):
             weight_decay=self.l2,
         )
 
-    def _step(self, name: str, batch: EmgWithHand | tuple):
-        if isinstance(batch, EmgWithHand):
-            emg = batch.emg
-            poses = batch.poses
-        elif isinstance(batch, tuple):
-            emg, poses = batch
-        else:
-            raise ValueError(
-                f"Expected batch to be EmgWithHand or tuple, got {type(batch)}"
-            )
-
+    @torch.compile(backend="cudagraphs")
+    def _loss(self, emg, poses):
         # (B, S=frames_per_window, 20)
         initial_poses = poses[:, : self.frames_per_window, :]
 
@@ -296,12 +287,9 @@ class Model(LightningModule):
 
         # First term is the right squared mean landmark error
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        loss = 1.0 * sq_delta.sum(dim=-1).mean()  # TODO: to hypers
+        lmerr = 1.0 * sq_delta.sum(dim=-1).mean()  # TODO: to hypers
 
-        # Log metrics
-        self.log(
-            f"{name}_lmerr", loss.sqrt()
-        )  # assuming forward_kinematics is in mm, then this is also in mm
+        loss = lmerr
 
         # A term for differential follow (reduces jitter and helps to learn faster)
         for k in [1.0, 1.0]:  # TODO: to hypers
@@ -316,5 +304,22 @@ class Model(LightningModule):
         l1_loss = sum(p.abs().sum() for p in self.parameters() if p.requires_grad)
         loss += 1e-4 * l1_loss  # TODO: to hypers
 
+        return lmerr, loss
+
+    def _step(self, name: str, batch: EmgWithHand | tuple):
+        if isinstance(batch, EmgWithHand):
+            emg = batch.emg
+            poses = batch.poses
+        elif isinstance(batch, tuple):
+            emg, poses = batch
+        else:
+            raise ValueError(
+                f"Expected batch to be EmgWithHand or tuple, got {type(batch)}"
+            )
+
+        lmerr, loss = self._loss(emg, poses)
+
+        self.log(f"{name}_lmerr", lmerr)
         self.log(f"{name}_loss", loss)
+
         return loss
