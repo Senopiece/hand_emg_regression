@@ -77,11 +77,16 @@ class _RecordingSlicing(Dataset):
         self,
         segment: HandEmgRecordingSegment,
         frames_per_item: int,
+        no_emg: bool,
     ):
         self.frames_per_item = frames_per_item
 
         self.emg_per_frame = segment.couples[0].emg.shape[0]
+
         self.emg = torch.tensor(segment.emg, dtype=torch.float32)
+        if no_emg:
+            self.emg = torch.zeros_like(self.emg)
+
         self.frames = torch.tensor(segment.frames, dtype=torch.float32)
 
     def __len__(self):
@@ -102,6 +107,7 @@ class DataModule(LightningDataModule):
         self,
         path: str,  # path to the zip file
         frames_per_item: int,
+        no_emg: bool,
         emg_samples_per_frame: (
             None | int
         ) = None,  # frames will be resampled if provided
@@ -116,6 +122,7 @@ class DataModule(LightningDataModule):
         self.path = path
         self.emg_samples_per_frame = emg_samples_per_frame
         self.frames_per_item = frames_per_item
+        self.no_emg = no_emg
         self.batch_size = batch_size
         self.train_sample_ratio = train_sample_ratio
         self.val_sample_ratio = val_sample_ratio
@@ -191,6 +198,7 @@ class DataModule(LightningDataModule):
                     _RecordingSlicing(
                         segment,
                         frames_per_item=self.frames_per_item,
+                        no_emg=self.no_emg,
                     )
                 )
             return ConcatDataset(slices)

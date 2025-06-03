@@ -294,9 +294,14 @@ class Model(LightningModule):
         landmarks_pred = self.forward_kinematics(y_hat)  # (B, S, L, 3)
         landmarks_gt = self.forward_kinematics(y)  # (B, S, L, 3)
 
-        # First term is the right error
+        # First term is the right squared mean landmark error
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
         loss = 1.0 * sq_delta.sum(dim=-1).mean()  # TODO: to hypers
+
+        # Log metrics
+        self.log(
+            f"{name}_lmerr", loss.sqrt()
+        )  # assuming forward_kinematics is in mm, then this is also in mm
 
         # A term for differential follow (reduces jitter and helps to learn faster)
         for k in [1.0, 1.0]:  # TODO: to hypers

@@ -49,6 +49,7 @@ def main(
     dataset_path: str,
     cont: bool,
     fast_dev_run: bool,
+    no_emg: bool,
     emg_samples_per_frame: int,
     slices: int,
     patterns: int,
@@ -77,6 +78,7 @@ def main(
         path=dataset_path,
         emg_samples_per_frame=emg_samples_per_frame,
         frames_per_item=frames_per_item,
+        no_emg=no_emg,
         train_sample_ratio=train_sample_ratio,
         val_sample_ratio=val_sample_ratio,
         recordings_usage=recordings_usage,
@@ -194,6 +196,11 @@ if __name__ == "__main__":
         "-c",
         action="store_true",
         help="Run a quick test of the training loop",
+    )
+    parser.add_argument(
+        "--no_emg",
+        action="store_true",
+        help="Zero out EMG signals (useful for validating hand motion predictability as itself)",
     )
     parser.add_argument(
         "--emg_samples_per_frame",
@@ -330,6 +337,7 @@ if __name__ == "__main__":
         dataset_path=args.dataset_path,
         cont=not args.new,
         fast_dev_run=args.check,
+        no_emg=args.no_emg,
         emg_samples_per_frame=args.emg_samples_per_frame,
         slices=args.slices,
         patterns=args.patterns,
