@@ -106,7 +106,8 @@ class DataModule(LightningDataModule):
     def __init__(
         self,
         path: str,  # path to the zip file
-        frames_per_item: int,
+        train_frames_per_item: int,
+        val_frames_per_item: int,
         no_emg: bool,
         emg_samples_per_frame: (
             None | int
@@ -121,7 +122,8 @@ class DataModule(LightningDataModule):
         super().__init__()
         self.path = path
         self.emg_samples_per_frame = emg_samples_per_frame
-        self.frames_per_item = frames_per_item
+        self.train_frames_per_item = train_frames_per_item
+        self.val_frames_per_item = val_frames_per_item
         self.no_emg = no_emg
         self.batch_size = batch_size
         self.train_sample_ratio = train_sample_ratio
@@ -191,20 +193,30 @@ class DataModule(LightningDataModule):
     def setup(self, stage=None):
         train_segments, val_segments = self._segments()
 
-        def to_dataset(name: str, segments: List[HandEmgRecordingSegment]):
+        def to_dataset(
+            name: str, segments: List[HandEmgRecordingSegment], frames_per_item
+        ):
             slices: List[_RecordingSlicing] = []
             for segment in tqdm(segments, desc=f"Transforming {name} dataset"):
                 slices.append(
                     _RecordingSlicing(
                         segment,
-                        frames_per_item=self.frames_per_item,
+                        frames_per_item=frames_per_item,
                         no_emg=self.no_emg,
                     )
                 )
             return ConcatDataset(slices)
 
-        self.train_dataset = to_dataset("train", train_segments)
-        self.val_dataset = to_dataset("val", val_segments)
+        self.train_dataset = to_dataset(
+            "train",
+            train_segments,
+            self.train_frames_per_item,
+        )
+        self.val_dataset = to_dataset(
+            "val",
+            val_segments,
+            self.val_frames_per_item,
+        )
 
     def train_dataloader(self):
         dataset = self.train_dataset
