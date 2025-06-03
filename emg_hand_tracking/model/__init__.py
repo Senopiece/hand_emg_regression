@@ -268,7 +268,7 @@ class Model(LightningModule):
             weight_decay=self.l2,
         )
 
-    @torch.compile(backend="cudagraphs")
+    # @torch.compile(backend="cudagraphs")
     def _loss(self, emg, poses):
         # (B, S=frames_per_window, 20)
         initial_poses = poses[:, : self.frames_per_window, :]
