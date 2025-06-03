@@ -90,9 +90,11 @@ class _RecordingSlicing(Dataset):
 
     def __getitem__(self, idx):
         u = idx + self.frames_per_item
+        emg_length = (u - idx) * self.emg_per_frame
 
         return EmgWithHand(
-            emg=self.emg[idx * self.emg_per_frame : u * self.emg_per_frame],
+            # Zero out the EMG signal
+            emg=torch.zeros(emg_length, self.emg.shape[1], dtype=self.emg.dtype),
             poses=self.frames[idx : u + 1],
         )
 
