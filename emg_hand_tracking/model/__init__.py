@@ -287,9 +287,10 @@ class Model(LightningModule):
 
         # First term is the right squared mean landmark error
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        lmerr = 1.0 * sq_delta.sum(dim=-1).mean()  # TODO: to hypers
+        slmerr = 1.0 * sq_delta.sum(dim=-1).mean()  # TODO: to hypers
 
-        loss = lmerr
+        loss = slmerr
+        lmerr = slmerr.sqrt()
 
         # A term for differential follow (reduces jitter and helps to learn faster)
         for k in [1.0, 1.0]:  # TODO: to hypers
