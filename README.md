@@ -11,7 +11,7 @@ This repository is suited to be evaluated both on proprietary dataset and on emg
 Hence follow the instructions of [emg2pose](https://github.com/facebookresearch/emg2pose) to install
 
 From here you are interested to install it with this commands into your preferred env (pyenv/venv/conda/etc...)
-```
+```bash
 # Install the emg2pose package
 pip install -e .
 
