@@ -3,3 +3,4 @@ torchaudio==2.7.0+cu118
 torchvision==0.22.0+cu118
 wandb==0.20.0
 pytorch-lightning==2.5.1.post0
+typer==0.15.4

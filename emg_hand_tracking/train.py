@@ -1,15 +1,18 @@
 import os
-import argparse
 import sys
 import time
+from datetime import timezone, datetime
+
+import torch
+import typer
 from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
-from datetime import timezone, datetime
-import torch
 
 from .dataset import DataModule
 from .model import Model, SubfeatureSettings, SubfeaturesSettings
+
+app = typer.Typer()
 
 
 class ParameterCountLimit(Callback):
@@ -43,39 +46,169 @@ class EpochTimeLimit(Callback):
             sys.exit(1)
 
 
+@app.command()
 def main(
-    name: str,
-    enable_progress_bar: bool,
-    dataset_path: str,
-    cont: bool,
-    fast_dev_run: bool,
-    no_emg: bool,
-    emg_samples_per_frame: int,
-    slices: int,
-    patterns: int,
-    frames_per_window: int,
-    slice_width: int,
-    mx_width: int,
-    mx_stride: int,
-    std_width: int,
-    std_stride: int,
-    synapse_features: int,
-    muscle_features: int,
-    predict_hidden_layer_size: int,
-    train_frames_per_patch: int,
-    val_frames_per_patch: int,
-    train_sample_ratio: float,
-    val_sample_ratio: float,
-    recordings_usage: int,
-    val_usage: int,
-    val_window: int,
-    batch_size: int,
-    lr: float,
-    l2: float,
-    epoch_time_limit: float,
+    dataset_path: str = typer.Option(
+        "dataset.zip",
+        "--dataset_path",
+        "-d",
+        help="Path to the emg2pose directory (can also be set via the DATASET_PATH environment variable)",
+    ),
+    version: str = typer.Option(
+        "model",
+        "--version",
+        "-v",
+        help="Version prefix to add into run name",
+    ),
+    new: bool = typer.Option(
+        False,
+        "--new",
+        "-n",
+        help="Forget previous checkpoint and start from scratch",
+    ),
+    disable_progress_bar: bool = typer.Option(
+        False,
+        "--disable_progress_bar",
+        "-p",
+        help="Disable the progress bar (forcedly disabled for running multiple)",
+    ),
+    check: bool = typer.Option(
+        False,
+        "--check",
+        "-c",
+        help="Run a quick test of the training loop",
+    ),
+    no_emg: bool = typer.Option(
+        False,
+        "--no_emg",
+        help="Zero out EMG signals (useful for validating hand motion predictability as itself)",
+    ),
+    emg_samples_per_frame: int = typer.Option(
+        16,
+        "--emg_samples_per_frame",
+        help="Number of EMG samples per frame",
+    ),
+    slices: int = typer.Option(
+        35,
+        "--slices",
+        help="Number of slices",
+    ),
+    patterns: int = typer.Option(
+        64,
+        "--patterns",
+        help="Number of patterns",
+    ),
+    frames_per_window: int = typer.Option(
+        10,
+        "--frames_per_window",
+        help="Number of frames per window",
+    ),
+    slice_width: int = typer.Option(
+        88,
+        "--slice_width",
+        help="Width of each slice",
+    ),
+    mx_width: int = typer.Option(
+        12,
+        "--mx_width",
+        help="Width for mx subfeature",
+    ),
+    mx_stride: int = typer.Option(
+        4,
+        "--mx_stride",
+        help="Stride for mx subfeature",
+    ),
+    std_width: int = typer.Option(
+        7,
+        "--std_width",
+        help="Width for std subfeature",
+    ),
+    std_stride: int = typer.Option(
+        1,
+        "--std_stride",
+        help="Stride for std subfeature",
+    ),
+    synapse_features: int = typer.Option(
+        520,
+        "--synapse_features",
+        help="Number of synapse features",
+    ),
+    muscle_features: int = typer.Option(
+        128,
+        "--muscle_features",
+        help="Number of muscle features",
+    ),
+    predict_hidden_layer_size: int = typer.Option(
+        256,
+        "--predict_hidden_layer_size",
+        help="Size of the hidden layer for prediction",
+    ),
+    train_frames_per_patch: int = typer.Option(
+        100,
+        "--train_frames_per_patch",
+        help="Number of frames per item for training",
+    ),
+    val_frames_per_patch: int = typer.Option(
+        100,
+        "--val_frames_per_patch",
+        help="Number of frames per item for validation",
+    ),
+    train_sample_ratio: float = typer.Option(
+        0.1,
+        "--train_sample_ratio",
+        help="Ratio of training samples",
+    ),
+    val_sample_ratio: float = typer.Option(
+        0.7,
+        "--val_sample_ratio",
+        help="Ratio of validation samples",
+    ),
+    recordings_usage: int = typer.Option(
+        32,
+        "--recordings_usage",
+        help="Limit number of recordings to use (in favour of bigger recordings)",
+    ),
+    val_usage: int = typer.Option(
+        12,
+        "--val_usage",
+        help="Limit number of recordings of which tails use for val (in favour of bigger recordings)",
+    ),
+    val_window: int = typer.Option(
+        248,
+        "--val_window",
+        help="Window size for validation",
+    ),
+    batch_size: int = typer.Option(
+        128,
+        "--batch_size",
+        help="Batch size",
+    ),
+    lr: float = typer.Option(
+        1e-3,
+        "--lr",
+        help="Learning rate",
+    ),
+    l2: float = typer.Option(
+        1e-4,
+        "--l2",
+        help="Weight decay",
+    ),
+    epoch_time_limit: float = typer.Option(
+        120.0,
+        "--epoch_time_limit",
+        help="Time limit for each epoch in seconds (default: 120). If exceeded, training will stop",
+    ),
 ):
+    # Interpret boolean flags
+    cont = not new
+    enable_progress_bar = not disable_progress_bar
+    fast_dev_run = check
+    name = version  # match previous behavior
+
+    # Set PyTorch precision
     torch.set_float32_matmul_precision("medium")
 
+    # Initialize data module
     data_module = DataModule(
         path=dataset_path,
         emg_samples_per_frame=emg_samples_per_frame,
@@ -90,11 +223,11 @@ def main(
         batch_size=batch_size,
     )
 
+    # Load or create model
     ckpt_path = f"./checkpoints/{name}.ckpt"
     if cont and os.path.exists(ckpt_path):
         print(f"Loading {ckpt_path}")
         model = Model.load_from_checkpoint(ckpt_path)
-
         # Override parameters
         model.lr = lr
         model.l2 = l2
@@ -125,6 +258,7 @@ def main(
             l2=l2,
         )
 
+    # Setup logger if not in fast_dev_run
     logger = None
     if not fast_dev_run:
         logger = WandbLogger(
@@ -133,6 +267,7 @@ def main(
             + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
         )
 
+    # Initialize trainer with callbacks
     trainer = Trainer(
         max_epochs=1000,
         gradient_clip_val=1.0,
@@ -160,220 +295,9 @@ def main(
         fast_dev_run=fast_dev_run,
     )
 
-    trainer.fit(
-        model,
-        datamodule=data_module,
-    )
+    # Start training
+    trainer.fit(model, datamodule=data_module)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train EMG-to-Pose model")
-    parser.add_argument(
-        "--dataset_path",
-        "-d",
-        type=str,
-        default="dataset.zip",
-        help="Path to the emg2pose directory (can also be set via the DATASET_PATH environment variable)",
-    )
-    parser.add_argument(
-        "--version",
-        "-v",
-        type=str,
-        default="model",
-        help="Version prefix to add into run name",
-    )
-    parser.add_argument(
-        "--new",
-        "-n",
-        action="store_true",
-        help="Forget previous checkpoint and start from scratch",
-    )
-    parser.add_argument(
-        "--disable_progress_bar",
-        "-p",
-        action="store_true",
-        help="Disable the progress bar, is forcedly disabled for running multiple",
-    )
-    parser.add_argument(
-        "--check",
-        "-c",
-        action="store_true",
-        help="Run a quick test of the training loop",
-    )
-    parser.add_argument(
-        "--no_emg",
-        action="store_true",
-        help="Zero out EMG signals (useful for validating hand motion predictability as itself)",
-    )
-    parser.add_argument(
-        "--emg_samples_per_frame",
-        type=int,
-        default=16,
-        help="Number of EMG samples per frame",
-    )
-    parser.add_argument(
-        "--slices",
-        type=int,
-        default=35,
-        help="Number of slices",
-    )
-    parser.add_argument(
-        "--patterns",
-        type=int,
-        default=64,
-        help="Number of patterns",
-    )
-    parser.add_argument(
-        "--frames_per_window",
-        type=int,
-        default=10,
-        help="Number of frames per window",
-    )
-    parser.add_argument(
-        "--slice_width",
-        type=int,
-        default=88,
-        help="Width of each slice",
-    )
-    parser.add_argument(
-        "--mx_width",
-        type=int,
-        default=12,
-        help="Width for mx subfeature",
-    )
-    parser.add_argument(
-        "--mx_stride",
-        type=int,
-        default=4,
-        help="Stride for mx subfeature",
-    )
-    parser.add_argument(
-        "--std_width",
-        type=int,
-        default=7,
-        help="Width for std subfeature",
-    )
-    parser.add_argument(
-        "--std_stride",
-        type=int,
-        default=1,
-        help="Stride for std subfeature",
-    )
-    parser.add_argument(
-        "--synapse_features",
-        type=int,
-        default=520,
-        help="Number of synapse features",
-    )
-    parser.add_argument(
-        "--muscle_features",
-        type=int,
-        default=128,
-        help="Number of muscle features",
-    )
-    parser.add_argument(
-        "--predict_hidden_layer_size",
-        type=int,
-        default=256,
-        help="Size of the hidden layer for prediction",
-    )
-    parser.add_argument(
-        "--train_frames_per_patch",
-        type=int,
-        default=100,
-        help="Number of frames per item",
-    )
-    parser.add_argument(
-        "--val_frames_per_patch",
-        type=int,
-        default=100,
-        help="Number of frames per item",
-    )
-    parser.add_argument(
-        "--train_sample_ratio",
-        type=float,
-        default=0.1,
-        help="Ratio of training samples",
-    )
-    parser.add_argument(
-        "--val_sample_ratio",
-        type=float,
-        default=0.7,
-        help="Ratio of validation samples",
-    )
-    parser.add_argument(
-        "--recordings_usage",
-        type=int,
-        default=32,
-        help="Limit number of recordings to use (in favour of bigger recordings)",
-    )
-    parser.add_argument(
-        "--val_usage",
-        type=int,
-        default=12,
-        help="Limit number of recordings of which tails use for val (in favour of bigger recordings)",
-    )
-    parser.add_argument(
-        "--val_window",
-        type=int,
-        default=248,
-        help="Window size for validation",
-    )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=128,
-        help="Batch size",
-    )
-    parser.add_argument(
-        "--lr",
-        type=float,
-        default=1e-3,
-        help="Learning rate",
-    )
-    parser.add_argument(
-        "--l2",
-        type=float,
-        default=1e-4,
-        help="Weight decay",
-    )
-    parser.add_argument(
-        "--epoch_time_limit",
-        type=float,
-        default=120.0,
-        help="Time limit for each epoch in seconds (default: 120) if exceeded, training will stop",
-    )
-
-    args = parser.parse_args()
-
-    main(
-        name=args.version,
-        enable_progress_bar=not args.disable_progress_bar,
-        dataset_path=args.dataset_path,
-        cont=not args.new,
-        fast_dev_run=args.check,
-        no_emg=args.no_emg,
-        emg_samples_per_frame=args.emg_samples_per_frame,
-        slices=args.slices,
-        patterns=args.patterns,
-        frames_per_window=args.frames_per_window,
-        slice_width=args.slice_width,
-        mx_width=args.mx_width,
-        mx_stride=args.mx_stride,
-        std_width=args.std_width,
-        std_stride=args.std_stride,
-        synapse_features=args.synapse_features,
-        muscle_features=args.muscle_features,
-        predict_hidden_layer_size=args.predict_hidden_layer_size,
-        train_frames_per_patch=args.train_frames_per_patch,
-        val_frames_per_patch=args.val_frames_per_patch,
-        train_sample_ratio=args.train_sample_ratio,
-        val_sample_ratio=args.val_sample_ratio,
-        recordings_usage=args.recordings_usage,
-        val_usage=args.val_usage,
-        val_window=args.val_window,
-        batch_size=args.batch_size,
-        lr=args.lr,
-        l2=args.l2,
-        epoch_time_limit=args.epoch_time_limit,
-    )
+    app()
