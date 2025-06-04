@@ -4,21 +4,24 @@ metric:
   name: val_loss
   goal: minimize
 
-early_terminate:
-  type: hyperband
-  min_iter: 20
-  eta: 2
-
 parameters:
-  slices:
-    distribution: int_uniform
-    min: 16
-    max: 64
+  val_usage:
+    value: 1
 
-  patterns:
-    distribution: int_uniform
-    min: 16
-    max: 1024
+  val_window:
+    value: 1000
+  
+  val_frames_per_patch:
+    value: 320
+  
+  epoch_time_limit:
+    value: 300
+
+  train_frames_per_patch:
+    values: [100, 200, 320, 400, 500, 600, 700, 800, 1000]
+
+  train_sample_ratio:
+    values: [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
 
 command:
   - ${env}
@@ -26,8 +29,8 @@ command:
   - -m
   - emg_hand_tracking.train
   - -d
-  - datasets/s4.z
+  - datasets/0.zip
   - -v
-  - s4
+  - c0
   - -n
   - ${args}
