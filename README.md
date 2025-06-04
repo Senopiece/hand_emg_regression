@@ -44,7 +44,7 @@ Training process is straightforward, having simple requirements of torch, cuda (
 A example using the training script:
 
 ```bash
-$ python -m emg_hand_tracking.train -d ../datasets/0.zip -v c0 -n --val_usage 1 --val_window 1000 --train_frames_per_item 320 --val_frames_per_item 320 --epoch_time_limit 10000
+$ python -m emg_hand_tracking.train -d ../datasets/0.zip -v c0 -n --val_usage 1 --val_window 1000 --train_frames_per_patch 320 --val_frames_per_patch 320 --epoch_time_limit 10000
 ```
 
 - That will utilize wandb for logging, so make sure to login first
