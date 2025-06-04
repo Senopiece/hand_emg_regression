@@ -76,10 +76,10 @@ class _RecordingSlicing(Dataset):
     def __init__(
         self,
         segment: HandEmgRecordingSegment,
-        frames_per_item: int,
+        frames_per_patch: int,
         no_emg: bool,
     ):
-        self.frames_per_item = frames_per_item
+        self.frames_per_patch = frames_per_patch
 
         self.emg_per_frame = segment.couples[0].emg.shape[0]
 
@@ -90,11 +90,11 @@ class _RecordingSlicing(Dataset):
         self.frames = torch.tensor(segment.frames, dtype=torch.float32)
 
     def __len__(self):
-        res = (self.emg.shape[0] // self.emg_per_frame) - self.frames_per_item + 1
+        res = (self.emg.shape[0] // self.emg_per_frame) - self.frames_per_patch + 1
         return res if res > 0 else 0
 
     def __getitem__(self, idx):
-        u = idx + self.frames_per_item
+        u = idx + self.frames_per_patch
 
         return EmgWithHand(
             emg=self.emg[idx * self.emg_per_frame : u * self.emg_per_frame],
@@ -106,8 +106,8 @@ class DataModule(LightningDataModule):
     def __init__(
         self,
         path: str,  # path to the zip file
-        train_frames_per_item: int,
-        val_frames_per_item: int,
+        train_frames_per_patch: int,
+        val_frames_per_patch: int,
         no_emg: bool,
         emg_samples_per_frame: (
             None | int
@@ -122,8 +122,8 @@ class DataModule(LightningDataModule):
         super().__init__()
         self.path = path
         self.emg_samples_per_frame = emg_samples_per_frame
-        self.train_frames_per_item = train_frames_per_item
-        self.val_frames_per_item = val_frames_per_item
+        self.train_frames_per_patch = train_frames_per_patch
+        self.val_frames_per_patch = val_frames_per_patch
         self.no_emg = no_emg
         self.batch_size = batch_size
         self.train_sample_ratio = train_sample_ratio
@@ -194,14 +194,14 @@ class DataModule(LightningDataModule):
         train_segments, val_segments = self._segments()
 
         def to_dataset(
-            name: str, segments: List[HandEmgRecordingSegment], frames_per_item
+            name: str, segments: List[HandEmgRecordingSegment], frames_per_patch
         ):
             slices: List[_RecordingSlicing] = []
             for segment in tqdm(segments, desc=f"Transforming {name} dataset"):
                 slices.append(
                     _RecordingSlicing(
                         segment,
-                        frames_per_item=frames_per_item,
+                        frames_per_patch=frames_per_patch,
                         no_emg=self.no_emg,
                     )
                 )
@@ -210,12 +210,12 @@ class DataModule(LightningDataModule):
         self.train_dataset = to_dataset(
             "train",
             train_segments,
-            self.train_frames_per_item,
+            self.train_frames_per_patch,
         )
         self.val_dataset = to_dataset(
             "val",
             val_segments,
-            self.val_frames_per_item,
+            self.val_frames_per_patch,
         )
 
     def train_dataloader(self):

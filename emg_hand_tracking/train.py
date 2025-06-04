@@ -62,8 +62,8 @@ def main(
     synapse_features: int,
     muscle_features: int,
     predict_hidden_layer_size: int,
-    train_frames_per_item: int,
-    val_frames_per_item: int,
+    train_frames_per_patch: int,
+    val_frames_per_patch: int,
     train_sample_ratio: float,
     val_sample_ratio: float,
     recordings_usage: int,
@@ -79,8 +79,8 @@ def main(
     data_module = DataModule(
         path=dataset_path,
         emg_samples_per_frame=emg_samples_per_frame,
-        train_frames_per_item=train_frames_per_item,
-        val_frames_per_item=val_frames_per_item,
+        train_frames_per_patch=train_frames_per_patch,
+        val_frames_per_patch=val_frames_per_patch,
         no_emg=no_emg,
         train_sample_ratio=train_sample_ratio,
         val_sample_ratio=val_sample_ratio,
@@ -278,13 +278,13 @@ if __name__ == "__main__":
         help="Size of the hidden layer for prediction",
     )
     parser.add_argument(
-        "--train_frames_per_item",
+        "--train_frames_per_patch",
         type=int,
         default=100,
         help="Number of frames per item",
     )
     parser.add_argument(
-        "--val_frames_per_item",
+        "--val_frames_per_patch",
         type=int,
         default=100,
         help="Number of frames per item",
@@ -365,8 +365,8 @@ if __name__ == "__main__":
         synapse_features=args.synapse_features,
         muscle_features=args.muscle_features,
         predict_hidden_layer_size=args.predict_hidden_layer_size,
-        train_frames_per_item=args.train_frames_per_item,
-        val_frames_per_item=args.val_frames_per_item,
+        train_frames_per_patch=args.train_frames_per_patch,
+        val_frames_per_patch=args.val_frames_per_patch,
         train_sample_ratio=args.train_sample_ratio,
         val_sample_ratio=args.val_sample_ratio,
         recordings_usage=args.recordings_usage,
