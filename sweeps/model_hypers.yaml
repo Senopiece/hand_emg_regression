@@ -68,6 +68,7 @@ parameters:
   
   # good dataset config
 
+  # TODO: use best dataset hypers
   val_usage:
     value: 10
   
@@ -94,6 +95,7 @@ parameters:
   
   dataset_path:
     values:
+      # TODO: choose the one that had the most diff between no emg and emg
       - datasets/0.zip
 
 command:
