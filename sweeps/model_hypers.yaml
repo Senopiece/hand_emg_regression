@@ -9,7 +9,6 @@ metric:
 early_terminate:
   type: hyperband
   min_iter: 30
-  eta: 3
   max_iter: 300
 
 parameters:
@@ -89,6 +88,9 @@ parameters:
 
   train_sample_ratio:
     value: 0.1
+  
+  patience:
+    value: 100
   
   dataset_path:
     values:

@@ -4,7 +4,7 @@ method: random
 
 metric:
   name: val_lmerr
-  goal: minimize
+  goal: minimize # actually just check all values
 
 parameters:
   # small model
