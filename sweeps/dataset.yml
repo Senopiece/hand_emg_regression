@@ -51,7 +51,7 @@ parameters:
     value: 300
   
   val_sample_ratio:
-    value: 0.3
+    value: 0.7
 
   val_window:
     value: 1000
