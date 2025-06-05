@@ -6,12 +6,11 @@ metric:
   name: val_lmerr
   goal: minimize
 
-# TODO: after checking what is pure bayes, try adding early termination
-# early_terminate:
-#   type: hyperband
-#   min_iter: 30
-#   eta: 3
-#   max_iter: 300
+early_terminate:
+  type: hyperband
+  min_iter: 30
+  eta: 3
+  max_iter: 300
 
 parameters:
   # variable model

@@ -65,6 +65,9 @@ parameters:
   train_sample_ratio:
     value: 0.1
   
+  patience:
+    value: 30
+  
   dataset_path:
     values:
       - datasets/s33.z

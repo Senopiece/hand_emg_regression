@@ -203,6 +203,11 @@ def main(
         "--epoch_time_limit",
         help="Time limit for each epoch in seconds (default: 120). If exceeded, training will stop",
     ),
+    patience: int = typer.Option(
+        100,
+        "--patience",
+        help="Patience before termination",
+    ),
 ):
     # Interpret boolean flags
     cont = not new
@@ -280,7 +285,7 @@ def main(
         enable_progress_bar=enable_progress_bar,
         logger=logger,
         callbacks=[
-            ParameterCountLimit(max_params=5_000_000),
+            ParameterCountLimit(max_params=2_000_000),
             ModelCheckpoint(
                 dirpath="checkpoints",
                 save_weights_only=True,
@@ -292,7 +297,7 @@ def main(
             ),
             EarlyStopping(
                 monitor="val_loss",
-                patience=100,
+                patience=patience,
                 mode="min",
             ),
             EpochTimeLimit(epoch_time_limit),
