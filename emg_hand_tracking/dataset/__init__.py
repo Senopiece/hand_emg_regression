@@ -226,7 +226,6 @@ class DataModule(LightningDataModule):
             sampler=_ConcatSamplerPerDataset(
                 dataset,
                 sample_ratio=self.train_sample_ratio,
-                seed=42,  # TODO: pass as parameter
             ),
             num_workers=0,
         )
@@ -239,7 +238,6 @@ class DataModule(LightningDataModule):
             sampler=_ConcatSamplerPerDataset(
                 dataset,
                 sample_ratio=self.val_sample_ratio,
-                seed=42,  # TODO: pass as parameter
             ),
             shuffle=False,
             num_workers=0,
