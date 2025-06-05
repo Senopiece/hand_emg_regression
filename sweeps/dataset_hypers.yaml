@@ -10,8 +10,7 @@ metric:
 early_terminate:
   type: hyperband
   min_iter: 30
-  eta: 3
-  max_iter: 300
+  max_iter: 100
 
 parameters:
   # small model
@@ -76,6 +75,9 @@ parameters:
     min: 0.01
     max: 0.5
   
+  patience:
+    value: 30
+
   dataset_path:
     value: datasets/0.zip
 
