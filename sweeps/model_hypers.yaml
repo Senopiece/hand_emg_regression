@@ -1,0 +1,97 @@
+# General search for good hypers on our dataset
+
+method: bayes
+
+metric:
+  name: val_lmerr
+  goal: minimize
+
+parameters:
+  # variable model
+
+  emg_samples_per_frame:
+    values: [16, 32, 64]
+  
+  slices:
+    min: 4
+    max: 64
+    distribution: int_uniform
+    
+  patterns:
+    min: 4
+    max: 64
+    distribution: int_uniform
+    
+  frames_per_window:
+    min: 4
+    max: 16
+    distribution: int_uniform
+    
+  slice_width:
+    min: 4
+    max: 128
+    distribution: int_uniform
+    
+  mx_width:
+    min: 2
+    max: 128
+    distribution: int_uniform
+  
+  mx_stride:
+    min: 1
+    max: 64
+    distribution: int_uniform
+    
+  std_width:
+    min: 2
+    max: 128
+    distribution: int_uniform
+  
+  std_stride:
+    min: 1
+    max: 64
+    distribution: int_uniform
+    
+  synapse_features:
+    values: [16, 32, 64, 128, 256, 512]
+    
+  muscle_features:
+    values: [16, 32, 64, 128, 256, 512]
+  
+  predict_hidden_layer_size:
+    values: [16, 32, 64, 128, 256, 512]
+  
+  # good dataset config
+
+  val_usage:
+    value: 10
+  
+  epoch_time_limit:
+    value: 300
+  
+  val_sample_ratio:
+    value: 0.3
+
+  val_window:
+    value: 1000
+  
+  val_frames_per_patch:
+    value: 320
+
+  train_frames_per_patch:
+    value: 320
+
+  train_sample_ratio:
+    value: 0.1
+  
+  dataset_path:
+    values:
+      - datasets/0.zip
+
+command:
+  - ${env}
+  - ${interpreter}
+  - -m
+  - emg_hand_tracking.train
+  - -n
+  - ${args}

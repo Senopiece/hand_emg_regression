@@ -1,6 +1,6 @@
-# Search good dataset params
+# fit on this dataset with small model
 
-method: bayes
+method: random
 
 metric:
   name: val_lmerr
@@ -42,16 +42,16 @@ parameters:
   predict_hidden_layer_size:
     value: 128
   
-  # dataset config
+  # good dataset config
 
   val_usage:
-    value: 1
+    value: 10
   
   epoch_time_limit:
     value: 300
   
   val_sample_ratio:
-    value: 0.7
+    value: 0.3
 
   val_window:
     value: 1000
@@ -60,17 +60,23 @@ parameters:
     value: 320
 
   train_frames_per_patch:
-    distribution: int_uniform
-    min: 30
-    max: 920
+    value: 320
 
   train_sample_ratio:
-    distribution: uniform
-    min: 0.01
-    max: 0.5
+    value: 0.1
   
   dataset_path:
-    value: datasets/0.zip
+    values:
+      - datasets/c0.zip
+      - datasets/c1.zip
+      - datasets/c2.zip
+      - datasets/c3.zip
+      - datasets/c4.zip
+      - datasets/c5.zip
+      - datasets/c6.zip
+      - datasets/c7.zip
+      - datasets/c8.zip
+      - datasets/c9.zip
 
 
 command:
