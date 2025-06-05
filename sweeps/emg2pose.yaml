@@ -1,0 +1,110 @@
+# fit on emg2pose with small model
+
+method: random
+
+metric:
+  name: val_lmerr
+  goal: minimize
+
+parameters:
+  # small model
+
+  frames_per_window:
+    value: 4
+
+  emg_samples_per_frame:
+    value: 32
+  
+  mx_width:
+    value: 22
+  
+  mx_stride:
+    value: 11
+  
+  std_width:
+    value: 22
+  
+  std_stride:
+    value: 11
+  
+  patterns:
+    value: 16
+  
+  slices:
+    value: 12
+  
+  synapse_features:
+    value: 128
+  
+  muscle_features:
+    value: 64
+  
+  predict_hidden_layer_size:
+    value: 128
+  
+  # good dataset config
+
+  val_usage:
+    value: 10
+  
+  epoch_time_limit:
+    value: 300
+  
+  val_sample_ratio:
+    value: 0.3
+
+  val_window:
+    value: 1000
+  
+  val_frames_per_patch:
+    value: 320
+
+  train_frames_per_patch:
+    value: 320
+
+  train_sample_ratio:
+    value: 0.1
+  
+  dataset_path:
+    values:
+      - datasets/s33.z
+      - datasets/s34.z
+      - datasets/s35.z
+      - datasets/s36.z
+      - datasets/s37.z
+      - datasets/s38.z
+      - datasets/s39.z
+      - datasets/s40.z
+      - datasets/s41.z
+      - datasets/s42.z
+      - datasets/s43.z
+      - datasets/s44.z
+      - datasets/s45.z
+      - datasets/s46.z
+      - datasets/s47.z
+      - datasets/s48.z
+      - datasets/s49.z
+      - datasets/s50.z
+      - datasets/s51.z
+      - datasets/s52.z
+      - datasets/s53.z
+      - datasets/s54.z
+      - datasets/s55.z
+      - datasets/s56.z
+      - datasets/s57.z
+      - datasets/s58.z
+      - datasets/s59.z
+      - datasets/s60.z
+      - datasets/s61.z
+      - datasets/s62.z
+      - datasets/s63.z
+      - datasets/s64.z
+
+
+command:
+  - ${env}
+  - ${interpreter}
+  - -m
+  - emg_hand_tracking.train
+  - -n
+  - ${args}
