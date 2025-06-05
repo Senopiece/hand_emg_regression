@@ -269,7 +269,7 @@ class Model(LightningModule):
         )
 
     # @torch.compile(backend="cudagraphs")
-    def _loss(self, emg, poses):
+    def _metrics(self, emg, poses):
         # (B, S=frames_per_window, 20)
         initial_poses = poses[:, : self.frames_per_window, :]
 
@@ -318,7 +318,7 @@ class Model(LightningModule):
                 f"Expected batch to be EmgWithHand or tuple, got {type(batch)}"
             )
 
-        lmerr, loss = self._loss(emg, poses)
+        lmerr, loss = self._metrics(emg, poses)
 
         self.log(f"{name}_lmerr", lmerr)
         self.log(f"{name}_loss", loss)

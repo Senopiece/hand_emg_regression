@@ -16,7 +16,7 @@ app = typer.Typer()
 
 
 class ParameterCountLimit(Callback):
-    def __init__(self, max_params: int = 5_000_000):
+    def __init__(self, max_params: int = 2_000_000):
         super().__init__()
         self.max_params = max_params
 
@@ -33,17 +33,22 @@ class EpochTimeLimit(Callback):
     def __init__(self, max_epoch_time_seconds: float = 120.0):
         super().__init__()
         self.max_epoch_time = max_epoch_time_seconds
+        self._start_time = None
 
     def on_train_epoch_start(self, trainer, pl_module):
         self._start_time = time.time()
 
-    def on_train_epoch_end(self, trainer, pl_module):
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
+        if self._start_time is None:
+            return
+
         elapsed = time.time() - self._start_time
         if elapsed > self.max_epoch_time:
             print(
-                f"\n⚠️  Epoch took {elapsed:.1f}s (limit is {self.max_epoch_time}s). Exiting."
+                f"\n⚠️  Training time exceeded {self.max_epoch_time}s limit. Stopping training."
             )
-            sys.exit(1)
+            # This will stop training immediately
+            trainer.should_stop = True
 
 
 @app.command()

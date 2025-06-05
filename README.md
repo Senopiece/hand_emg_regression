@@ -48,4 +48,4 @@ $ python -m emg_hand_tracking.train -d ../datasets/0.zip -v c0 -n --val_usage 1 
 ```
 
 - That will utilize wandb for logging, so make sure to login first
-- Also check [sweep.yaml](sweep.yaml) to make hyper-parameter search
+- Also check [sweeps](sweeps) to make hyper-parameter search
