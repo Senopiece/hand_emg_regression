@@ -9,8 +9,9 @@ metric:
 
 early_terminate:
   type: hyperband
-  min_iter: 30
-  max_iter: 100
+  min_iter: 300
+  max_iter: 1000
+
 
 parameters:
   # small model
@@ -79,8 +80,7 @@ parameters:
     value: 30
 
   dataset_path:
-    # TODO: choose the one that had the most diff between no emg and emg
-    #   already using 0.zip, so this is just a future work to try on more relyable dataset
+    # TODO: choose the one that had the most diff between no emg and emg (or a mean fit one?)
     value: datasets/0.zip
 
 
