@@ -52,6 +52,27 @@ class EpochTimeLimit(Callback):
             trainer.should_stop = True
 
 
+def parse_slice_width_percentage_value(value: str, slice_width: int) -> int:
+    try:
+        # Try to convert the value to a float
+        float_value = float(value)
+
+        # Check if it's a percentage (0-1 range)
+        if 0 <= float_value <= 1:
+            return int(float_value * slice_width)
+        else:
+            # Treat as an absolute integer value
+            return int(float_value)
+    except ValueError:
+        # Handle the case where the value is a string ending with '%'
+        if value.endswith("%"):
+            percentage = float(value[:-1])
+            return int((percentage / 100) * slice_width)
+        else:
+            # Directly convert to integer if no special handling is needed
+            return int(value)
+
+
 @app.command()
 def main(
     dataset_path: str = typer.Option(
@@ -119,25 +140,25 @@ def main(
         "--slice_width",
         help="Width of each slice",
     ),
-    mx_width: int = typer.Option(
-        12,
+    mx_width_raw: str = typer.Option(
+        "12",
         "--mx_width",
-        help="Width for mx subfeature",
+        help="Width for mx subfeature (can be an integer or a percentage of slice_width, e.g., '50%')",
     ),
-    mx_stride: int = typer.Option(
-        4,
+    mx_stride_raw: str = typer.Option(
+        "4",
         "--mx_stride",
-        help="Stride for mx subfeature",
+        help="Stride for mx subfeature (can be an integer or a percentage of slice_width, e.g., '50%')",
     ),
-    std_width: int = typer.Option(
-        7,
+    std_width_raw: str = typer.Option(
+        "7",
         "--std_width",
-        help="Width for std subfeature",
+        help="Width for std subfeature (can be an integer or a percentage of slice_width, e.g., '50%')",
     ),
-    std_stride: int = typer.Option(
-        1,
+    std_stride_raw: str = typer.Option(
+        "1",
         "--std_stride",
-        help="Stride for std subfeature",
+        help="Stride for std subfeature (can be an integer or a percentage of slice_width, e.g., '50%')",
     ),
     synapse_features: int = typer.Option(
         520,
@@ -175,12 +196,12 @@ def main(
         help="Ratio of validation samples",
     ),
     recordings_usage: int = typer.Option(
-        32,
+        32,  # TODO: also allow to provide in %
         "--recordings_usage",
         help="Limit number of recordings to use (in favour of bigger recordings), -1 for all",
     ),
     val_usage: int = typer.Option(
-        12,
+        12,  # TODO: also allow to provide in % of recordings
         "--val_usage",
         help="Limit number of recordings of which tails use for val (in favour of bigger recordings), -1 for all",
     ),
@@ -225,6 +246,12 @@ def main(
     enable_progress_bar = not disable_progress_bar
     fast_dev_run = check
     name = version  # match previous behavior
+
+    # Parse the width and stride values
+    mx_width = parse_slice_width_percentage_value(mx_width_raw, slice_width)
+    mx_stride = parse_slice_width_percentage_value(mx_stride_raw, slice_width)
+    std_width = parse_slice_width_percentage_value(std_width_raw, slice_width)
+    std_stride = parse_slice_width_percentage_value(std_stride_raw, slice_width)
 
     # Set PyTorch precision
     torch.set_float32_matmul_precision("medium")
