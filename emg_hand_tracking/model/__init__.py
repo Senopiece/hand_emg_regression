@@ -130,13 +130,13 @@ class Model(LightningModule):
                 if emg_featurizer != "cnn"
                 # TODO: to hypers
                 else nn.Sequential(
-                    nn.Conv1d(channels, 32, kernel_size=5, padding=2),
+                    nn.Conv1d(channels, 640, kernel_size=5, padding=2),
                     nn.ReLU(),
                     nn.MaxPool1d(kernel_size=2),
-                    nn.Conv1d(32, 64, kernel_size=3, padding=1),
+                    nn.Conv1d(640, 512, kernel_size=3, padding=1),
                     nn.ReLU(),
                     nn.MaxPool1d(kernel_size=2),
-                    nn.Conv1d(64, 128, kernel_size=3, padding=1),
+                    nn.Conv1d(512, 128, kernel_size=3, padding=1),
                     nn.ReLU(),
                     nn.AdaptiveAvgPool1d(1),
                     nn.Flatten(),

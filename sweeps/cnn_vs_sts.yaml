@@ -6,34 +6,8 @@ metric:
   name: val_lmerr
   goal: minimize
 
-early_terminate:
-  type: hyperband
-  min_iter: 300
-  max_iter: 1000
-
 parameters:
   # variable model
-
-  emg_samples_per_frame:
-    value: 32
-  
-  slices:
-    value: 8
-    
-  patterns:
-    value: 42
-  
-  frames_per_window:
-    value: 4
-    
-  synapse_features:
-    value: 128
-    
-  muscle_features:
-    value: 64
-  
-  predict_hidden_layer_size:
-    value: 128
   
   emg_featurizer:
     values:
@@ -46,7 +20,7 @@ parameters:
     value: 1
   
   epoch_time_limit:
-    value: 300
+    value: 1000
   
   val_sample_ratio:
     value: 0.3
@@ -67,8 +41,7 @@ parameters:
     value: 50
   
   dataset_path:
-    values:
-      - datasets/0.zip
+    value: datasets/0.zip
 
 command:
   - ${env}
