@@ -15,39 +15,39 @@ parameters:
   # model config
 
   l1:
-    distribution: log_uniform
+    distribution: q_log_uniform_values
     min: 1e-5
     max: 1e-2
 
   l2:
-    distribution: log_uniform
+    distribution: q_log_uniform_values
     min: 1e-5
     max: 1e-2
 
   emg_samples_per_frame:
-    distribution: q_log_uniform
+    distribution: q_log_uniform_values
     min: 16
     max: 64
   
   slices:
+    distribution: int_uniform
     min: 4
     max: 256
-    distribution: int_uniform
   
   patterns:
+    distribution: int_uniform
     min: 4
     max: 256
-    distribution: int_uniform
     
   frames_per_window:
+    distribution: int_uniform
     min: 4
     max: 16
-    distribution: int_uniform
     
   slice_width:
+    distribution: int_uniform
     min: 4
     max: 128
-    distribution: int_uniform
   
   mx_width:
     distribution: uniform
@@ -70,17 +70,17 @@ parameters:
     max: 0.8
     
   synapse_features:
-    distribution: q_log_uniform
+    distribution: q_log_uniform_values
     min: 16
     max: 1024
   
   muscle_features:
-    distribution: q_log_uniform
+    distribution: q_log_uniform_values
     min: 16
     max: 1024
   
   predict_hidden_layer_size:
-    distribution: q_log_uniform
+    distribution: q_log_uniform_values
     min: 16
     max: 1024
   
