@@ -5,8 +5,7 @@ from typing import List, NamedTuple
 from tqdm import tqdm
 from scipy.interpolate import Akima1DInterpolator, interp1d
 
-
-W = 64
+W = 64  # W = EmgSampling/HandSampling
 
 
 class HandEmgTuple(NamedTuple):
