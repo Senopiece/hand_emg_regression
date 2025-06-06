@@ -55,6 +55,7 @@ class Model(LightningModule):
         muscle_features: int,
         predict_hidden_layer_size: int,
         lr: float = 1e-3,
+        l1: float = 1e-4,
         l2: float = 1e-5,
     ):
         super().__init__()
@@ -63,6 +64,7 @@ class Model(LightningModule):
         self.forward_kinematics = FK_BY_POSE_FORMAT[pose_format]
 
         self.lr = lr
+        self.l1 = l1
         self.l2 = l2
 
         self.channels = channels
@@ -313,9 +315,9 @@ class Model(LightningModule):
 
         # First term is the right squared mean landmark error
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
-        slmerr = 1.0 * sq_delta.sum(dim=-1).mean()  # TODO: to hypers
+        slmerr = sq_delta.sum(dim=-1).mean()
 
-        loss = slmerr
+        loss = slmerr * 1.0  # TODO: scale to hypers
         lmerr = slmerr.sqrt()
 
         # A term for differential follow (reduces jitter and helps to learn faster)
@@ -329,7 +331,7 @@ class Model(LightningModule):
 
         # Add L1 regularization loss manually
         l1_loss = sum(p.abs().sum() for p in self.parameters() if p.requires_grad)
-        loss += 1e-4 * l1_loss  # TODO: to hypers
+        loss += self.l1 * l1_loss
 
         return lmerr, loss
 

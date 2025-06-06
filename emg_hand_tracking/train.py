@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 import time
 from datetime import timezone, datetime
@@ -57,7 +58,7 @@ def main(
         "dataset.zip",
         "--dataset_path",
         "-d",
-        help="Path to the emg2pose directory (can also be set via the DATASET_PATH environment variable)",
+        help="Path to the emg2pose directory",
     ),
     version: str = typer.Option(
         "model",
@@ -176,12 +177,12 @@ def main(
     recordings_usage: int = typer.Option(
         32,
         "--recordings_usage",
-        help="Limit number of recordings to use (in favour of bigger recordings)",
+        help="Limit number of recordings to use (in favour of bigger recordings), -1 for all",
     ),
     val_usage: int = typer.Option(
         12,
         "--val_usage",
-        help="Limit number of recordings of which tails use for val (in favour of bigger recordings)",
+        help="Limit number of recordings of which tails use for val (in favour of bigger recordings), -1 for all",
     ),
     val_window: int = typer.Option(
         248,
@@ -197,6 +198,11 @@ def main(
         1e-3,
         "--lr",
         help="Learning rate",
+    ),
+    l1: float = typer.Option(
+        1e-4,
+        "--l1",
+        help="L1 factor",
     ),
     l2: float = typer.Option(
         1e-4,
@@ -223,6 +229,23 @@ def main(
     # Set PyTorch precision
     torch.set_float32_matmul_precision("medium")
 
+    # Resolve dataset
+    randdatapath = "$rand:"
+    if dataset_path.startswith(randdatapath):
+        dataset_path = dataset_path[len(randdatapath) :]
+
+        # List all items in the directory
+        files = os.listdir(dataset_path)
+
+        # Filter out directories, keep only files
+        files = [f for f in files if os.path.isfile(os.path.join(dataset_path, f))]
+
+        if files:
+            dataset_path = random.choice(files)
+            print(f"Peeking at random dataset: {dataset_path}")
+        else:
+            raise ValueError("No files found in the dataset directory.")
+
     # Initialize data module
     data_module = DataModule(
         path=dataset_path,
@@ -245,6 +268,7 @@ def main(
         model = Model.load_from_checkpoint(ckpt_path)
         # Override parameters
         model.lr = lr
+        model.l1 = l1
         model.l2 = l2
     else:
         print(f"Making new {name}")
@@ -271,6 +295,7 @@ def main(
             muscle_features=muscle_features,
             predict_hidden_layer_size=predict_hidden_layer_size,
             lr=lr,
+            l1=l1,
             l2=l2,
         )
 
@@ -285,6 +310,7 @@ def main(
 
     # Initialize trainer with callbacks
     trainer = Trainer(
+        min_epochs=70,
         max_epochs=1000,
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",

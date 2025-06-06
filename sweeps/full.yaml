@@ -1,4 +1,4 @@
-# General search for good hypers on our dataset
+# General search for the best model on averaged dataset
 
 method: bayes
 
@@ -8,23 +8,29 @@ metric:
 
 early_terminate:
   type: hyperband
-  min_iter: 300
-  max_iter: 1000
+  min_iter: 70
+  max_iter: 300
 
 parameters:
-  # variable model
+  # model config
+
+  l1:
+    values: [1e-2, 1e-3, 1e-4, 1e-5]
+  
+  l2:
+    values: [1e-2, 1e-3, 1e-4, 1e-5]
 
   emg_samples_per_frame:
     values: [16, 32, 64]
   
   slices:
     min: 4
-    max: 64
+    max: 256
     distribution: int_uniform
-    
+  
   patterns:
     min: 4
-    max: 64
+    max: 256
     distribution: int_uniform
     
   frames_per_window:
@@ -36,7 +42,7 @@ parameters:
     min: 4
     max: 128
     distribution: int_uniform
-    
+  
   mx_width:
     min: 2
     max: 128
@@ -58,22 +64,29 @@ parameters:
     distribution: int_uniform
     
   synapse_features:
-    values: [16, 32, 64, 128, 256, 512]
+    values: [16, 32, 64, 128, 256, 512, 1024]
   
   muscle_features:
-    values: [16, 32, 64, 128, 256, 512]
+    values: [16, 32, 64, 128, 256, 512, 1024]
   
   predict_hidden_layer_size:
-    values: [16, 32, 64, 128, 256, 512]
+    values: [16, 32, 64, 128, 256, 512, 1024]
   
-  # good dataset config
+  emg_featurizer:
+    values:
+      - cnn
+      - sts
 
-  # TODO: use best dataset hypers
+  # dataset config
+
+  recordings_usage:
+    value: -1 # all
+
   val_usage:
-    value: 1
+    value: -1 # all
   
   epoch_time_limit:
-    value: 300
+    value: 600
   
   val_sample_ratio:
     value: 0.3
@@ -85,18 +98,20 @@ parameters:
     value: 320
 
   train_frames_per_patch:
-    value: 320
+    distribution: int_uniform
+    min: 30
+    max: 920
 
   train_sample_ratio:
-    value: 0.1
+    distribution: uniform
+    min: 0.01
+    max: 0.5
   
   patience:
-    value: 100
+    value: 50
   
   dataset_path:
-    values:
-      # TODO: choose the one that had the most diff between no emg and emg (or a mean fit one?)
-      - datasets/0.zip
+    value: $rand:./datasets
 
 command:
   - ${env}
