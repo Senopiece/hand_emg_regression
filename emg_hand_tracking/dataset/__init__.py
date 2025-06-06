@@ -91,6 +91,7 @@ class _RecordingSlicing(Dataset):
 
     def __len__(self):
         res = (self.emg.shape[0] // self.emg_per_frame) - self.frames_per_patch + 1
+        assert res == self.frames.shape[0] - self.frames_per_patch
         return res if res > 0 else 0
 
     def __getitem__(self, idx):
