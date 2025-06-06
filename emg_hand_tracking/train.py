@@ -38,7 +38,7 @@ class EpochTimeLimit(Callback):
     def on_train_epoch_start(self, trainer, pl_module):
         self._start_time = time.time()
 
-    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         if self._start_time is None:
             return
 
