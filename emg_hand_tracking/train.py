@@ -241,8 +241,8 @@ def main(
         files = [f for f in files if os.path.isfile(os.path.join(dataset_path, f))]
 
         if files:
-            dataset_path = random.choice(files)
-            print(f"Peeking at random dataset: {dataset_path}")
+            dataset_path = os.path.join(dataset_path, random.choice(files))
+            print(f"Peeking a random dataset: {dataset_path}")
         else:
             raise ValueError("No files found in the dataset directory.")
 
