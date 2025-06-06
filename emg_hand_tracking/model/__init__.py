@@ -44,6 +44,7 @@ class Model(LightningModule):
         self,
         pose_format: str,
         channels: int,
+        emg_featurizer: str,
         emg_samples_per_frame: int,
         slices: int,
         patterns: int,
@@ -82,63 +83,88 @@ class Model(LightningModule):
         self.emg_feature_extract = WindowedApply(  # <- (B, C, T)
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
-            f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.ZeroPad1d(slice_width // 2),
-                ExtractLearnableSlices(
-                    n=slices, width=slice_width
-                ),  # -> (B, slices, slice_width)
-                Parallel(
-                    nn.Sequential(
-                        LearnablePatternSimilarity(
-                            n=patterns, width=slice_width
-                        ),  # -> (B, slices, patterns)
-                        nn.Flatten(),  # -> (B, slices*patterns)
-                        nn.ReLU(),
-                    ),
-                    nn.Sequential(
-                        Permute(0, 2, 1),
-                        WeightedMean(slice_width),
-                    ),  # -> (B, slices)
-                    Max(),  # -> (B, slices)
-                    StdDev(),  # -> (B, slices)
-                    nn.Sequential(
-                        WindowedApply(
-                            window_len=subfeatures.mx.width,
-                            step=subfeatures.mx.stride,
-                            # -> (B, slices, pattern_subfeature_width)
-                            f=StdDev(),  # -> (B, slices)
-                        ),  # -> (B, W, slices)
-                        WeightedMean(
-                            subfeatures.mx.windows(slice_width)
+            f=(
+                nn.Sequential(  # <- (B, C, total_seq_length)
+                    nn.ZeroPad1d(slice_width // 2),
+                    ExtractLearnableSlices(
+                        n=slices, width=slice_width
+                    ),  # -> (B, slices, slice_width)
+                    Parallel(
+                        nn.Sequential(
+                            LearnablePatternSimilarity(
+                                n=patterns, width=slice_width
+                            ),  # -> (B, slices, patterns)
+                            nn.Flatten(),  # -> (B, slices*patterns)
+                            nn.ReLU(),
+                        ),
+                        nn.Sequential(
+                            Permute(0, 2, 1),
+                            WeightedMean(slice_width),
                         ),  # -> (B, slices)
+                        Max(),  # -> (B, slices)
+                        StdDev(),  # -> (B, slices)
+                        nn.Sequential(
+                            WindowedApply(
+                                window_len=subfeatures.mx.width,
+                                step=subfeatures.mx.stride,
+                                # -> (B, slices, pattern_subfeature_width)
+                                f=StdDev(),  # -> (B, slices)
+                            ),  # -> (B, W, slices)
+                            WeightedMean(
+                                subfeatures.mx.windows(slice_width)
+                            ),  # -> (B, slices)
+                        ),
+                        nn.Sequential(
+                            WindowedApply(
+                                window_len=subfeatures.std.width,
+                                step=subfeatures.std.stride,
+                                # -> (B, slices, pattern_subfeature_width)
+                                f=Max(),  # -> (B, slices)
+                            ),  # -> (B, W, slices)
+                            WeightedMean(
+                                subfeatures.std.windows(slice_width)
+                            ),  # -> (B, slices)
+                        ),
                     ),
-                    nn.Sequential(
-                        WindowedApply(
-                            window_len=subfeatures.std.width,
-                            step=subfeatures.std.stride,
-                            # -> (B, slices, pattern_subfeature_width)
-                            f=Max(),  # -> (B, slices)
-                        ),  # -> (B, W, slices)
-                        WeightedMean(
-                            subfeatures.std.windows(slice_width)
-                        ),  # -> (B, slices)
-                    ),
+                )
+                if emg_featurizer != "cnn"
+                # TODO: to hypers
+                else nn.Sequential(
+                    nn.Conv1d(channels, 32, kernel_size=5, padding=2),
+                    nn.ReLU(),
+                    nn.MaxPool1d(kernel_size=2),
+                    nn.Conv1d(32, 64, kernel_size=3, padding=1),
+                    nn.ReLU(),
+                    nn.MaxPool1d(kernel_size=2),
+                    nn.Conv1d(64, 128, kernel_size=3, padding=1),
+                    nn.ReLU(),
+                    nn.AdaptiveAvgPool1d(1),
+                    nn.Flatten(),
+                )
+            ),
+        )  # -> (B, W, F), S=W
+
+        if emg_featurizer != "cnn":
+            parallel_layer = self.emg_feature_extract.f[2]  # type: ignore
+            subfeatures_count = len(parallel_layer.modules_list) - 1
+
+            self.synapse_feature_extract = nn.Sequential(
+                nn.Linear(
+                    slices * patterns
+                    + subfeatures_count * slices
+                    + self.pos_vel_acc_datasize,
+                    synapse_features,
                 ),
-            ),
-        )  # -> (B, W, slices * patterns + (N-1) * slices), S=W
-
-        parallel_layer = self.emg_feature_extract.f[2]  # type: ignore
-        subfeatures_count = len(parallel_layer.modules_list) - 1
-
-        self.synapse_feature_extract = nn.Sequential(
-            nn.Linear(
-                slices * patterns
-                + subfeatures_count * slices
-                + self.pos_vel_acc_datasize,
-                synapse_features,
-            ),
-            nn.ReLU(),
-        )
+                nn.ReLU(),
+            )
+        else:
+            self.synapse_feature_extract = nn.Sequential(
+                nn.Linear(
+                    128 + self.pos_vel_acc_datasize,
+                    synapse_features,
+                ),
+                nn.ReLU(),
+            )
 
         self.muscle_feature_extract = nn.Linear(
             synapse_features + self.pos_vel_acc_datasize,

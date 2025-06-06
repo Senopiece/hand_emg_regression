@@ -45,7 +45,7 @@ parameters:
   # good dataset config
 
   val_usage:
-    value: 10
+    value: 1
   
   epoch_time_limit:
     value: 300

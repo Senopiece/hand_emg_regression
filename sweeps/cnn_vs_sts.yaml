@@ -1,46 +1,44 @@
-# fit on this dataset with small model
+# General search for good hypers on our dataset
 
 method: random
 
 metric:
   name: val_lmerr
-  goal: minimize # actually just check all values
+  goal: minimize
+
+early_terminate:
+  type: hyperband
+  min_iter: 300
+  max_iter: 1000
 
 parameters:
-  # small model
-
-  frames_per_window:
-    value: 4
+  # variable model
 
   emg_samples_per_frame:
     value: 32
   
-  mx_width:
-    value: 22
-  
-  mx_stride:
-    value: 11
-  
-  std_width:
-    value: 22
-  
-  std_stride:
-    value: 11
-  
-  patterns:
-    value: 16
-  
   slices:
-    value: 12
+    value: 8
+    
+  patterns:
+    value: 42
   
+  frames_per_window:
+    value: 4
+    
   synapse_features:
     value: 128
-  
+    
   muscle_features:
     value: 64
   
   predict_hidden_layer_size:
     value: 128
+  
+  emg_featurizer:
+    values:
+      - cnn
+      - sts
   
   # good dataset config
 
@@ -66,21 +64,11 @@ parameters:
     value: 0.1
   
   patience:
-    value: 100
+    value: 50
   
   dataset_path:
     values:
-      - datasets/c0.zip
-      - datasets/c1.zip
-      - datasets/c2.zip
-      - datasets/c3.zip
-      - datasets/c4.zip
-      - datasets/c5.zip
-      - datasets/c6.zip
-      - datasets/c7.zip
-      - datasets/c8.zip
-      - datasets/c9.zip
-
+      - datasets/0.zip
 
 command:
   - ${env}
