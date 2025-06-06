@@ -15,19 +15,10 @@ parameters:
   # model config
 
   l1:
-    distribution: q_log_uniform_values
-    min: 1e-5
-    max: 1e-2
+    values: [1e-2, 1e-3, 1e-4, 1e-5]
 
   l2:
-    distribution: q_log_uniform_values
-    min: 1e-5
-    max: 1e-2
-
-  emg_samples_per_frame:
-    distribution: q_log_uniform_values
-    min: 16
-    max: 64
+    values: [1e-2, 1e-3, 1e-4, 1e-5]
   
   slices:
     distribution: int_uniform
@@ -70,19 +61,13 @@ parameters:
     max: 0.8
     
   synapse_features:
-    distribution: q_log_uniform_values
-    min: 16
-    max: 1024
+    values: [32, 64, 128, 512, 1024]
   
   muscle_features:
-    distribution: q_log_uniform_values
-    min: 16
-    max: 1024
+    values: [32, 64, 128, 512, 1024]
   
   predict_hidden_layer_size:
-    distribution: q_log_uniform_values
-    min: 16
-    max: 1024
+    values: [32, 64, 128, 512, 1024]
   
   emg_featurizer:
     values:
@@ -101,7 +86,7 @@ parameters:
     value: 600
   
   val_sample_ratio:
-    value: 0.3
+    value: 0.1
 
   val_window:
     value: 1000
