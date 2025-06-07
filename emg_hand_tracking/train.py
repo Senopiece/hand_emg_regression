@@ -48,8 +48,7 @@ class EpochTimeLimit(Callback):
             print(
                 f"\n⚠️  Training time exceeded {self.max_epoch_time}s limit. Stopping training."
             )
-            # This will stop training immediately
-            trainer.should_stop = True
+            sys.exit(1)
 
 
 def parse_slice_width_percentage_value(value: str, slice_width: int) -> int:
