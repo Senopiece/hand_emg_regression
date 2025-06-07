@@ -285,6 +285,7 @@ def main(
 
         # Update in wandb config
         if logger is not None:
+            logger.experiment  # init run
             wandb.config.__dict__["_locked"] = {}  # `delete lock on sweep parameters
             wandb.config.update({"dataset_path": randdatapath + dataset_path})
 
