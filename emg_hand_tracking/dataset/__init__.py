@@ -90,8 +90,7 @@ class _RecordingSlicing(Dataset):
         self.frames = torch.tensor(segment.frames, dtype=torch.float32)
 
     def __len__(self):
-        res = (self.emg.shape[0] // self.emg_per_frame) - self.frames_per_patch + 1
-        assert res == self.frames.shape[0] - self.frames_per_patch
+        res = self.frames.shape[0] - self.frames_per_patch
         return res if res > 0 else 0
 
     def __getitem__(self, idx):
@@ -143,10 +142,12 @@ class DataModule(LightningDataModule):
 
         # Limit number of recordings to use
         recordings = recordings[: self.recordings_usage]
+        assert len(recordings) > 0
         if self.val_usage > 0:
             self.val_usage = min(self.val_usage, len(recordings))
         else:
-            self.val_usage = len(recordings)
+            self.val_usage = len(recordings) - self.val_usage + 1
+            assert self.val_usage > 0
 
         # split: val - the last X frames from some recordings
         train_segments: List[HandEmgRecordingSegment] = []
