@@ -255,6 +255,15 @@ def main(
     # Set PyTorch precision
     torch.set_float32_matmul_precision("medium")
 
+    # Setup logger if not in fast_dev_run
+    logger = None
+    if not fast_dev_run:
+        logger = WandbLogger(
+            project="emg-hand-regression",
+            version=name
+            + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
+        )
+
     # Resolve dataset
     randdatapath = "$rand:"
     if dataset_path.startswith(randdatapath):
@@ -271,6 +280,13 @@ def main(
             print(f"Peeking a random dataset: {dataset_path}")
         else:
             raise ValueError("No files found in the dataset directory.")
+
+        # Update in wandb config
+        if logger is not None:
+            logger.experiment.config.update(
+                {"dataset_path": randdatapath + dataset_path},
+                allow_val_change=True,
+            )
 
     # Initialize data module
     data_module = DataModule(
@@ -323,15 +339,6 @@ def main(
             lr=lr,
             l1=l1,
             l2=l2,
-        )
-
-    # Setup logger if not in fast_dev_run
-    logger = None
-    if not fast_dev_run:
-        logger = WandbLogger(
-            project="emg-hand-regression",
-            version=name
-            + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
         )
 
     # Initialize trainer with callbacks
