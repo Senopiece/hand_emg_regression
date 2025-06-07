@@ -9,6 +9,7 @@ import typer
 from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
+import wandb
 
 from .dataset import DataModule
 from .model import Model, SubfeatureSettings, SubfeaturesSettings
@@ -262,6 +263,7 @@ def main(
             project="emg-hand-regression",
             version=name
             + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
+            allow_val_change=True,
         )
 
     # Resolve dataset
@@ -281,9 +283,10 @@ def main(
         else:
             raise ValueError("No files found in the dataset directory.")
 
-    # Update in wandb config
-    if logger is not None:
-        logger.experiment.log("resolved_dataset_path", dataset_path)
+        # Update in wandb config
+        if logger is not None:
+            wandb.config.__dict__["_locked"] = {}  # `delete lock on sweep parameters
+            wandb.config.update({"dataset_path": randdatapath + dataset_path})
 
     # Initialize data module
     data_module = DataModule(
