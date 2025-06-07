@@ -281,12 +281,9 @@ def main(
         else:
             raise ValueError("No files found in the dataset directory.")
 
-        # Update in wandb config
-        if logger is not None:
-            logger.experiment.config.update(
-                {"dataset_path": randdatapath + dataset_path},
-                allow_val_change=True,
-            )
+    # Update in wandb config
+    if logger is not None:
+        logger.experiment.log("resolved_dataset_path", dataset_path)
 
     # Initialize data module
     data_module = DataModule(
