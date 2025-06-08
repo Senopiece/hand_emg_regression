@@ -47,8 +47,8 @@ class Model(LightningModule):
         emg_samples_per_frame: int,
         slices: int,
         patterns: int,
-        frames_per_window: int,
-        slice_width: int,
+        context_frames_span: int,  # in frames
+        slice_emg_width: int,  # in emg samples
         subfeatures: SubfeaturesSettings,
         synapse_features: int,
         muscle_features: int,

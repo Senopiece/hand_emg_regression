@@ -5,6 +5,7 @@ from typing import List, NamedTuple
 from tqdm import tqdm
 from scipy.interpolate import Akima1DInterpolator, interp1d
 
+F = 2048  # assuming 2048 emg sampling frequency
 W = 64  # W = EmgSampling/HandSampling
 
 
@@ -224,6 +225,12 @@ def load_recordings(path: str, emg_samples_per_frame: int | None = None):
                 )
 
     return recordings
+
+
+def calc_frame_duration(emg_samples_per_frame: float | None):
+    if emg_samples_per_frame is None:
+        emg_samples_per_frame = W
+    return emg_samples_per_frame / F  # in seconds
 
 
 def inspect_channels(path: str) -> int:

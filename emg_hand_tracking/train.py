@@ -1,4 +1,3 @@
-from curses.ascii import isalnum
 import os
 import random
 import sys
@@ -13,11 +12,11 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 import wandb
 
-from .dataset import DataModule
+from .dataset import DataModule, calc_frame_duration
 from .model import Model, SubfeatureSettings, SubfeaturesSettings
 
 
-app = typer.Typer()
+app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 class ParameterCountLimit(Callback):
@@ -35,9 +34,9 @@ class ParameterCountLimit(Callback):
 
 
 class EpochTimeLimit(Callback):
-    def __init__(self, max_epoch_time_seconds: float = 120.0):
+    def __init__(self, max_epoch_time_minutes: float = 10.0):
         super().__init__()
-        self.max_epoch_time = max_epoch_time_seconds
+        self.max_epoch_time = max_epoch_time_minutes
         self._start_time = None
 
     def on_train_epoch_start(self, trainer, pl_module):
@@ -47,7 +46,7 @@ class EpochTimeLimit(Callback):
         if self._start_time is None:
             return
 
-        elapsed = time.time() - self._start_time
+        elapsed = (time.time() - self._start_time) / 60.0
         if elapsed > self.max_epoch_time:
             print(
                 f"\n⚠️  Training time exceeded {self.max_epoch_time}s limit. Stopping training."
@@ -134,10 +133,10 @@ def main(
         "--patterns",
         help="Number of patterns",
     ),
-    frames_per_window: int = typer.Option(
-        10,
-        "--frames_per_window",
-        help="Number of frames per window",
+    context_span: int = typer.Option(
+        32,
+        "--context_span",
+        help="Size of the context window (in ms)",
     ),
     slice_width: int = typer.Option(
         88,
@@ -179,40 +178,45 @@ def main(
         "--predict_hidden_layer_size",
         help="Size of the hidden layer for prediction",
     ),
-    train_frames_per_patch: int = typer.Option(
-        100,
-        "--train_frames_per_patch",
-        help="Number of frames per item for training",
+    train_split_length: float = typer.Option(
+        8.0,
+        "--train_split_length",
+        help="Size of the train subset (in minutes)",
     ),
-    val_frames_per_patch: int = typer.Option(
-        100,
-        "--val_frames_per_patch",
-        help="Number of frames per item for validation",
+    train_segmentation: int = typer.Option(
+        64,
+        "--train_segmentation",
+        help="Segmentation of the train subset",
+    ),
+    train_patch_length: float = typer.Option(
+        2.0,
+        "--train_patch_length",
+        help="Size of the train path in the batch (in seconds)",
     ),
     train_sample_ratio: float = typer.Option(
-        0.1,  # TODO: also allow to provide in number of samples
+        0.1,
         "--train_sample_ratio",
-        help="Ratio of training samples",
+        help="Ratio of train patches to use in one epoch",
+    ),
+    val_split_length: float = typer.Option(
+        0.4,
+        "--val_split_length",
+        help="Size of the val subset (in minutes)",
+    ),
+    val_segmentation: int = typer.Option(
+        12,
+        "--val_segmentation",
+        help="Segmentation of the val subset",
+    ),
+    val_patch_length: float = typer.Option(
+        2.0,
+        "--val_patch_length",
+        help="Size of the val path in the batch (in seconds)",
     ),
     val_sample_ratio: float = typer.Option(
-        0.7,  # TODO: also allow to provide in number of samples
+        0.1,
         "--val_sample_ratio",
-        help="Ratio of validation samples",
-    ),
-    recordings_usage: int = typer.Option(
-        32,  # TODO: also allow to provide in %
-        "--recordings_usage",
-        help="Limit number of recordings to use (in favour of bigger recordings), -1 for all",
-    ),
-    val_usage: int = typer.Option(
-        12,  # TODO: also allow to provide in % of recordings
-        "--val_usage",
-        help="Limit number of recordings of which tails use for val (in favour of bigger recordings), -1 for all",
-    ),
-    val_window: int = typer.Option(
-        248,
-        "--val_window",
-        help="Window size for validation",
+        help="Ratio of validation patches to use in one epoch",
     ),
     batch_size: int = typer.Option(
         128,
@@ -250,9 +254,9 @@ def main(
         help="Scale for acceleration component of loss",
     ),
     epoch_time_limit: float = typer.Option(
-        120.0,
+        10.0,
         "--epoch_time_limit",
-        help="Time limit for each epoch in seconds (default: 120). If exceeded, training will stop",
+        help="Time limit for each epoch in minutes. If exceeded, training will stop",
     ),
     patience: int = typer.Option(
         100,
@@ -308,7 +312,7 @@ def main(
     update_wandb_config("seed", seed)
 
     # Resolve dataset
-    randdatapath = "$rand:"
+    randdatapath = "/rand:"
     if dataset_path.startswith(randdatapath):
         dataset_path = dataset_path[len(randdatapath) :]
 
@@ -330,15 +334,16 @@ def main(
     data_module = DataModule(
         path=dataset_path,
         emg_samples_per_frame=emg_samples_per_frame,
-        train_frames_per_patch=train_frames_per_patch,
-        val_frames_per_patch=val_frames_per_patch,
         no_emg=no_emg,
-        train_sample_ratio=train_sample_ratio,
-        val_sample_ratio=val_sample_ratio,
-        recordings_usage=recordings_usage,
-        val_usage=val_usage,
-        val_window=val_window,
         batch_size=batch_size,
+        train_split_length=train_split_length,
+        train_segmentation=train_segmentation,
+        train_patch_length=train_patch_length,
+        train_sample_ratio=train_sample_ratio,
+        val_split_length=val_split_length,
+        val_segmentation=val_segmentation,
+        val_patch_length=val_patch_length,
+        val_sample_ratio=val_sample_ratio,
     )
 
     # Load or create model
@@ -360,14 +365,16 @@ def main(
 
     else:
         print(f"Making new {name}")
+        frames_per_sec = 1 / calc_frame_duration(emg_samples_per_frame)
+        frames_per_ms = frames_per_sec * 0.001
         model = Model(
             # Architecture hyperparameters
             channels=data_module.emg_channels,
             emg_samples_per_frame=emg_samples_per_frame,
             slices=slices,
             patterns=patterns,
-            frames_per_window=frames_per_window,
-            slice_width=slice_width,
+            context_frames_span=int(context_span * frames_per_ms),
+            slice_emg_width=int(slice_width * frames_per_ms),
             subfeatures=SubfeaturesSettings(
                 mx=SubfeatureSettings(
                     width=mx_width,
