@@ -4,6 +4,7 @@ import random
 import sys
 import time
 from datetime import timezone, datetime
+from typing import Any
 
 import torch
 import typer
@@ -264,17 +265,6 @@ def main(
     # Set PyTorch precision
     torch.set_float32_matmul_precision("medium")
 
-    # Seed all
-    if raw_seed.isdecimal():
-        seed = int(raw_seed)
-        seed_everything(seed, workers=True)
-    elif raw_seed == "rand":
-        seed = None
-    else:
-        raise ValueError(
-            f"Invalid seed value: {raw_seed}. It should be a number or 'rand'."
-        )
-
     # Setup logger if not in fast_dev_run
     logger = None
     if not fast_dev_run:
@@ -283,6 +273,27 @@ def main(
             version=name
             + f"-{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')}",
             allow_val_change=True,
+        )
+        logger.experiment  # init run
+        wandb.config.__dict__["_locked"] = {}  # `delete lock on sweep parameters
+
+    def update_wandb_config(key: str, value: Any):
+        if logger is not None:
+            wandb.config.update(
+                {key: value},
+                allow_val_change=True,
+            )
+
+    # Seed all
+    if raw_seed.isdecimal():
+        seed = int(raw_seed)
+        seed_everything(seed, workers=True)
+        update_wandb_config("seed", seed)
+    elif raw_seed == "rand":
+        seed = None
+    else:
+        raise ValueError(
+            f"Invalid seed value: {raw_seed}. It should be a number or 'rand'."
         )
 
     # Resolve dataset
@@ -302,14 +313,7 @@ def main(
         else:
             raise ValueError("No files found in the dataset directory.")
 
-        # Update in wandb config
-        if logger is not None:
-            logger.experiment  # init run
-            wandb.config.__dict__["_locked"] = {}  # `delete lock on sweep parameters
-            wandb.config.update(
-                {"dataset_path": randdatapath + dataset_path},
-                allow_val_change=True,
-            )
+        update_wandb_config("dataset_path", randdatapath + dataset_path)
 
     # Initialize data module
     data_module = DataModule(
