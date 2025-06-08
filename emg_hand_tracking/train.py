@@ -139,9 +139,9 @@ def main(
         help="Size of the context window (in ms)",
     ),
     slice_width: int = typer.Option(
-        88,
+        10,
         "--slice_width",
-        help="Width of each slice",
+        help="Width of each slice (in ms)",
     ),
     mx_width_raw: str = typer.Option(
         "12",
