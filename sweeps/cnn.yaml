@@ -34,7 +34,7 @@ parameters:
     distribution: int_uniform
     min: 4
     max: 16
-    
+  
   slice_width:
     distribution: int_uniform
     min: 4
@@ -70,9 +70,7 @@ parameters:
     values: [32, 64, 128, 512, 1024]
   
   emg_featurizer:
-    values:
-      - cnn
-      - sts
+    value: cnn
 
   # dataset config
 
