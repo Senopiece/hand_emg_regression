@@ -74,7 +74,7 @@ class Model(LightningModule):
 
         self.channels = channels
         self.emg_samples_per_frame = emg_samples_per_frame
-        self.frames_per_window = frames_per_window
+        self.frames_per_window = context_frames_span
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20
             + (self.frames_per_window - 1) * 20
@@ -91,21 +91,21 @@ class Model(LightningModule):
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
             f=nn.Sequential(  # <- (B, C, total_seq_length)
-                nn.ZeroPad1d(slice_width // 2),
+                nn.ZeroPad1d(slice_emg_width // 2),
                 ExtractLearnableSlices(
-                    n=slices, width=slice_width
-                ),  # -> (B, slices, slice_width)
+                    n=slices, width=slice_emg_width
+                ),  # -> (B, slices, slice_emg_width)
                 Parallel(
                     nn.Sequential(
                         LearnablePatternSimilarity(
-                            n=patterns, width=slice_width
+                            n=patterns, width=slice_emg_width
                         ),  # -> (B, slices, patterns)
                         nn.Flatten(),  # -> (B, slices*patterns)
                         nn.ReLU(),
                     ),
                     nn.Sequential(
                         Permute(0, 2, 1),
-                        WeightedMean(slice_width),
+                        WeightedMean(slice_emg_width),
                     ),  # -> (B, slices)
                     Max(),  # -> (B, slices)
                     StdDev(),  # -> (B, slices)
@@ -117,7 +117,7 @@ class Model(LightningModule):
                             f=StdDev(),  # -> (B, slices)
                         ),  # -> (B, W, slices)
                         WeightedMean(
-                            subfeatures.mx.windows(slice_width)
+                            subfeatures.mx.windows(slice_emg_width)
                         ),  # -> (B, slices)
                     ),
                     nn.Sequential(
@@ -128,7 +128,7 @@ class Model(LightningModule):
                             f=Max(),  # -> (B, slices)
                         ),  # -> (B, W, slices)
                         WeightedMean(
-                            subfeatures.std.windows(slice_width)
+                            subfeatures.std.windows(slice_emg_width)
                         ),  # -> (B, slices)
                     ),
                 ),
