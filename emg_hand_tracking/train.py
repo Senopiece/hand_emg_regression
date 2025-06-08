@@ -239,6 +239,21 @@ def main(
         "--l2",
         help="Weight decay",
     ),
+    slmerr_k: float = typer.Option(
+        1.0,
+        "--slmerr_k",
+        help="Scale for landmark MSE component of loss",
+    ),
+    vel_k: float = typer.Option(
+        1.0,
+        "--vel_k",
+        help="Scale for velocity component of loss",
+    ),
+    accel_k: float = typer.Option(
+        1.0,
+        "--accel_k",
+        help="Scale for acceleration component of loss",
+    ),
     epoch_time_limit: float = typer.Option(
         120.0,
         "--epoch_time_limit",
@@ -335,16 +350,23 @@ def main(
     if cont and os.path.exists(ckpt_path):
         print(f"Loading {ckpt_path}")
         model = Model.load_from_checkpoint(ckpt_path)
-        # Override parameters
+
+        # Override learning hyperparameters
+        model.set_pose_format(
+            data_module.pose_format,
+        )
         model.lr = lr
         model.l1 = l1
         model.l2 = l2
+        model.slmerr_k = slmerr_k
+        model.vel_k = vel_k
+        model.accel_k = accel_k
+
     else:
         print(f"Making new {name}")
         model = Model(
-            pose_format=data_module.pose_format,
+            # Architecture hyperparameters
             channels=data_module.emg_channels,
-            emg_featurizer=emg_featurizer,
             emg_samples_per_frame=emg_samples_per_frame,
             slices=slices,
             patterns=patterns,
@@ -363,9 +385,15 @@ def main(
             synapse_features=synapse_features,
             muscle_features=muscle_features,
             predict_hidden_layer_size=predict_hidden_layer_size,
+            #
+            # Learning hyperparameters
+            pose_format=data_module.pose_format,
             lr=lr,
             l1=l1,
             l2=l2,
+            slmerr_k=slmerr_k,
+            vel_k=vel_k,
+            accel_k=accel_k,
         )
 
     # Initialize trainer with callbacks

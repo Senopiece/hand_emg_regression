@@ -44,7 +44,6 @@ class Model(LightningModule):
         self,
         pose_format: str,
         channels: int,
-        emg_featurizer: str,
         emg_samples_per_frame: int,
         slices: int,
         patterns: int,
@@ -57,19 +56,19 @@ class Model(LightningModule):
         lr: float = 1e-3,
         l1: float = 1e-4,
         l2: float = 1e-5,
-        slmerr_scale: float = 1.0,
-        vel_k: float = 0.1,
-        accel_k: float = 0.1,
+        slmerr_k: float = 1.0,
+        vel_k: float = 1.0,
+        accel_k: float = 1.0,
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        self.forward_kinematics = FK_BY_POSE_FORMAT[pose_format]
+        self.set_pose_format(pose_format)
 
         self.lr = lr
         self.l1 = l1
         self.l2 = l2
-        self.slmerr_scale = slmerr_scale
+        self.slmerr_k = slmerr_k
         self.vel_k = vel_k
         self.accel_k = accel_k
 
@@ -91,88 +90,86 @@ class Model(LightningModule):
         self.emg_feature_extract = WindowedApply(  # <- (B, C, T)
             window_len=self.emg_window_length,
             step=self.emg_samples_per_frame,
-            f=(
-                nn.Sequential(  # <- (B, C, total_seq_length)
-                    nn.ZeroPad1d(slice_width // 2),
-                    ExtractLearnableSlices(
-                        n=slices, width=slice_width
-                    ),  # -> (B, slices, slice_width)
-                    Parallel(
-                        nn.Sequential(
-                            LearnablePatternSimilarity(
-                                n=patterns, width=slice_width
-                            ),  # -> (B, slices, patterns)
-                            nn.Flatten(),  # -> (B, slices*patterns)
-                            nn.ReLU(),
-                        ),
-                        nn.Sequential(
-                            Permute(0, 2, 1),
-                            WeightedMean(slice_width),
-                        ),  # -> (B, slices)
-                        Max(),  # -> (B, slices)
-                        StdDev(),  # -> (B, slices)
-                        nn.Sequential(
-                            WindowedApply(
-                                window_len=subfeatures.mx.width,
-                                step=subfeatures.mx.stride,
-                                # -> (B, slices, pattern_subfeature_width)
-                                f=StdDev(),  # -> (B, slices)
-                            ),  # -> (B, W, slices)
-                            WeightedMean(
-                                subfeatures.mx.windows(slice_width)
-                            ),  # -> (B, slices)
-                        ),
-                        nn.Sequential(
-                            WindowedApply(
-                                window_len=subfeatures.std.width,
-                                step=subfeatures.std.stride,
-                                # -> (B, slices, pattern_subfeature_width)
-                                f=Max(),  # -> (B, slices)
-                            ),  # -> (B, W, slices)
-                            WeightedMean(
-                                subfeatures.std.windows(slice_width)
-                            ),  # -> (B, slices)
-                        ),
+            f=nn.Sequential(  # <- (B, C, total_seq_length)
+                nn.ZeroPad1d(slice_width // 2),
+                ExtractLearnableSlices(
+                    n=slices, width=slice_width
+                ),  # -> (B, slices, slice_width)
+                Parallel(
+                    nn.Sequential(
+                        LearnablePatternSimilarity(
+                            n=patterns, width=slice_width
+                        ),  # -> (B, slices, patterns)
+                        nn.Flatten(),  # -> (B, slices*patterns)
+                        nn.ReLU(),
                     ),
-                )
-                if emg_featurizer != "cnn"
-                # TODO: to hypers
-                else nn.Sequential(
-                    nn.Conv1d(channels, 640, kernel_size=5, padding=2),
-                    nn.ReLU(),
-                    nn.MaxPool1d(kernel_size=2),
-                    nn.Conv1d(640, 512, kernel_size=3, padding=1),
-                    nn.ReLU(),
-                    nn.MaxPool1d(kernel_size=2),
-                    nn.Conv1d(512, 128, kernel_size=3, padding=1),
-                    nn.ReLU(),
-                    nn.AdaptiveAvgPool1d(1),
-                    nn.Flatten(),
-                )
+                    nn.Sequential(
+                        Permute(0, 2, 1),
+                        WeightedMean(slice_width),
+                    ),  # -> (B, slices)
+                    Max(),  # -> (B, slices)
+                    StdDev(),  # -> (B, slices)
+                    nn.Sequential(
+                        WindowedApply(
+                            window_len=subfeatures.mx.width,
+                            step=subfeatures.mx.stride,
+                            # -> (B, slices, pattern_subfeature_width)
+                            f=StdDev(),  # -> (B, slices)
+                        ),  # -> (B, W, slices)
+                        WeightedMean(
+                            subfeatures.mx.windows(slice_width)
+                        ),  # -> (B, slices)
+                    ),
+                    nn.Sequential(
+                        WindowedApply(
+                            window_len=subfeatures.std.width,
+                            step=subfeatures.std.stride,
+                            # -> (B, slices, pattern_subfeature_width)
+                            f=Max(),  # -> (B, slices)
+                        ),  # -> (B, W, slices)
+                        WeightedMean(
+                            subfeatures.std.windows(slice_width)
+                        ),  # -> (B, slices)
+                    ),
+                ),
             ),
+            # if emg_featurizer != "cnn"
+            # TODO: to separate branch
+            # else nn.Sequential(
+            #     nn.Conv1d(channels, 640, kernel_size=5, padding=2),
+            #     nn.ReLU(),
+            #     nn.MaxPool1d(kernel_size=2),
+            #     nn.Conv1d(640, 512, kernel_size=3, padding=1),
+            #     nn.ReLU(),
+            #     nn.MaxPool1d(kernel_size=2),
+            #     nn.Conv1d(512, 128, kernel_size=3, padding=1),
+            #     nn.ReLU(),
+            #     nn.AdaptiveAvgPool1d(1),
+            #     nn.Flatten(),
+            # )
         )  # -> (B, W, F), S=W
 
-        if emg_featurizer != "cnn":
-            parallel_layer = self.emg_feature_extract.f[2]  # type: ignore
-            subfeatures_count = len(parallel_layer.modules_list) - 1
+        # if emg_featurizer == "cnn":
+        #     self.synapse_feature_extract = nn.Sequential(
+        #         nn.Linear(
+        #             128 + self.pos_vel_acc_datasize,
+        #             synapse_features,
+        #         ),
+        #         nn.ReLU(),
+        #     )
+        # else:
+        parallel_layer = self.emg_feature_extract.f[2]  # type: ignore
+        subfeatures_count = len(parallel_layer.modules_list) - 1
 
-            self.synapse_feature_extract = nn.Sequential(
-                nn.Linear(
-                    slices * patterns
-                    + subfeatures_count * slices
-                    + self.pos_vel_acc_datasize,
-                    synapse_features,
-                ),
-                nn.ReLU(),
-            )
-        else:
-            self.synapse_feature_extract = nn.Sequential(
-                nn.Linear(
-                    128 + self.pos_vel_acc_datasize,
-                    synapse_features,
-                ),
-                nn.ReLU(),
-            )
+        self.synapse_feature_extract = nn.Sequential(
+            nn.Linear(
+                slices * patterns
+                + subfeatures_count * slices
+                + self.pos_vel_acc_datasize,
+                synapse_features,
+            ),
+            nn.ReLU(),
+        )
 
         self.muscle_feature_extract = nn.Linear(
             synapse_features + self.pos_vel_acc_datasize,
@@ -189,6 +186,15 @@ class Model(LightningModule):
         )
 
         self.filter = WeightedMean(self.frames_per_window + 1)
+
+    def set_pose_format(self, pose_format: str):
+        """
+        Set the pose format for the forward kinematics.
+        This is useful if the model needs to adapt to different pose formats.
+        """
+        if pose_format not in FK_BY_POSE_FORMAT:
+            raise ValueError(f"Unsupported pose format: {pose_format}")
+        self.forward_kinematics = FK_BY_POSE_FORMAT[pose_format]
 
     def _forward(self, emg: torch.Tensor, initial_poses: torch.Tensor):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
@@ -323,7 +329,7 @@ class Model(LightningModule):
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
         slmerr = sq_delta.sum(dim=-1).mean()
 
-        loss = slmerr * self.slmerr_scale
+        loss = slmerr * self.slmerr_k
         lmerr = slmerr.sqrt()
 
         # A term for differential follow (reduces jitter and helps to learn faster)
