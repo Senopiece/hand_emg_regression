@@ -73,13 +73,6 @@ parameters:
     value: sts
 
   # dataset config
-
-  recordings_usage:
-    value: -1 # all
-
-  val_usage:
-    value: -1 # all
-  
   epoch_time_limit:
     value: 600
   
@@ -87,6 +80,9 @@ parameters:
     value: 0.1
 
   val_window:
+    value: 1000
+  
+  val_segmentation:
     value: 1000
   
   val_frames_per_patch:

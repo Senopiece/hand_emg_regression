@@ -1,3 +1,4 @@
+from curses.ascii import isalnum
 import os
 import random
 import sys
@@ -6,13 +7,14 @@ from datetime import timezone, datetime
 
 import torch
 import typer
-from pytorch_lightning import Callback, Trainer
+from pytorch_lightning import Callback, Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 import wandb
 
 from .dataset import DataModule
 from .model import Model, SubfeatureSettings, SubfeaturesSettings
+
 
 app = typer.Typer()
 
@@ -98,6 +100,12 @@ def main(
         "--disable_progress_bar",
         "-p",
         help="Disable the progress bar (forcedly disabled for running multiple)",
+    ),
+    raw_seed: str = typer.Option(
+        "rand",
+        "--seed",
+        "-s",
+        help="Random seed for reproducibility, set to 'rand' for random seed",
     ),
     check: bool = typer.Option(
         False,
@@ -186,12 +194,12 @@ def main(
         help="Number of frames per item for validation",
     ),
     train_sample_ratio: float = typer.Option(
-        0.1,
+        0.1,  # TODO: also allow to provide in number of samples
         "--train_sample_ratio",
         help="Ratio of training samples",
     ),
     val_sample_ratio: float = typer.Option(
-        0.7,
+        0.7,  # TODO: also allow to provide in number of samples
         "--val_sample_ratio",
         help="Ratio of validation samples",
     ),
@@ -255,6 +263,17 @@ def main(
 
     # Set PyTorch precision
     torch.set_float32_matmul_precision("medium")
+
+    # Seed all
+    if raw_seed.isdecimal():
+        seed = int(raw_seed)
+        seed_everything(seed, workers=True)
+    elif raw_seed == "rand":
+        seed = None
+    else:
+        raise ValueError(
+            f"Invalid seed value: {raw_seed}. It should be a number or 'rand'."
+        )
 
     # Setup logger if not in fast_dev_run
     logger = None
@@ -372,6 +391,7 @@ def main(
             EpochTimeLimit(epoch_time_limit),
         ],
         fast_dev_run=fast_dev_run,
+        deterministic=seed is not None,
     )
 
     # Start training

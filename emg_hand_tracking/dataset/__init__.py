@@ -31,33 +31,27 @@ warnings.filterwarnings(
 class _ConcatSamplerPerDataset(Sampler):
     """Samples elements from each dataset in a ConcatDataset separately"""
 
-    def __init__(self, concat_dataset, sample_ratio=0.2, seed=None):
+    def __init__(self, concat_dataset, sample_ratio=0.2):
         self.datasets = concat_dataset.datasets
         self.sample_ratio = sample_ratio
-        self.seed = seed
 
         # Calculate starting indices for each dataset in the concatenated dataset
         self.cumulative_sizes = concat_dataset.cumulative_sizes
         self.offsets = [0] + self.cumulative_sizes[:-1]
 
     def __iter__(self):
-        # Use a separate generator for each epoch
-        g = torch.Generator()
-        if self.seed is not None:
-            g.manual_seed(self.seed)
-
         indices = []
         # Sample from each dataset separately
         for dataset_idx, dataset in enumerate(self.datasets):
             size = len(dataset)
             n_samples = math.ceil(size * self.sample_ratio)
             # Generate random indices for this dataset
-            dataset_indices = torch.randperm(size, generator=g)[:n_samples]
+            dataset_indices = torch.randperm(size)[:n_samples]
             # Add offset to map to concatenated dataset indices
             indices.extend(dataset_indices.add(self.offsets[dataset_idx]).tolist())
 
         # Shuffle the combined indices
-        combined = torch.tensor(indices)[torch.randperm(len(indices), generator=g)]
+        combined = torch.tensor(indices)[torch.randperm(len(indices))]
         return iter(combined.tolist())
 
     def __len__(self):

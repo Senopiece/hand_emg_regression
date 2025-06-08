@@ -57,6 +57,9 @@ class Model(LightningModule):
         lr: float = 1e-3,
         l1: float = 1e-4,
         l2: float = 1e-5,
+        slmerr_scale: float = 1.0,
+        vel_k: float = 0.1,
+        accel_k: float = 0.1,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -66,6 +69,9 @@ class Model(LightningModule):
         self.lr = lr
         self.l1 = l1
         self.l2 = l2
+        self.slmerr_scale = slmerr_scale
+        self.vel_k = vel_k
+        self.accel_k = accel_k
 
         self.channels = channels
         self.emg_samples_per_frame = emg_samples_per_frame
@@ -317,11 +323,11 @@ class Model(LightningModule):
         sq_delta = (landmarks_pred - landmarks_gt) ** 2  # (B, S, L, 3)
         slmerr = sq_delta.sum(dim=-1).mean()
 
-        loss = slmerr * 1.0  # TODO: scale to hypers
+        loss = slmerr * self.slmerr_scale
         lmerr = slmerr.sqrt()
 
         # A term for differential follow (reduces jitter and helps to learn faster)
-        for k in [1.0, 1.0]:  # TODO: to hypers
+        for k in [self.vel_k, self.accel_k]:
             # Differentiate
             landmarks_pred = landmarks_pred.diff(dim=1)  # (B, S, L, 3)
             landmarks_gt = landmarks_gt.diff(dim=1)  # (B, S, L, 3)
