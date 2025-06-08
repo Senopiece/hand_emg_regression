@@ -20,45 +20,7 @@ parameters:
   l2:
     values: [1e-2, 1e-3, 1e-4, 1e-5]
   
-  slices:
-    distribution: int_uniform
-    min: 4
-    max: 256
-  
-  patterns:
-    distribution: int_uniform
-    min: 4
-    max: 256
-    
-  frames_per_window:
-    distribution: int_uniform
-    min: 4
-    max: 16
-  
-  slice_width:
-    distribution: int_uniform
-    min: 4
-    max: 128
-  
-  mx_width:
-    distribution: uniform
-    min: 0.1
-    max: 0.8
-
-  mx_stride:
-    distribution: uniform
-    min: 0.1
-    max: 0.8
-
-  std_width:
-    distribution: uniform
-    min: 0.1
-    max: 0.8
-
-  std_stride:
-    distribution: uniform
-    min: 0.1
-    max: 0.8
+  # TODO: cnn specific hypers
     
   synapse_features:
     values: [32, 64, 128, 512, 1024]
