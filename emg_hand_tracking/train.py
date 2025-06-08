@@ -297,14 +297,15 @@ def main(
     # Seed all
     if raw_seed.isdecimal():
         seed = int(raw_seed)
-        seed_everything(seed, workers=True)
-        update_wandb_config("seed", seed)
     elif raw_seed == "rand":
-        seed = None
+        seed = random.randint(0, 2**31 - 1)
     else:
         raise ValueError(
             f"Invalid seed value: {raw_seed}. It should be a number or 'rand'."
         )
+
+    seed_everything(seed, workers=True)
+    update_wandb_config("seed", seed)
 
     # Resolve dataset
     randdatapath = "$rand:"
