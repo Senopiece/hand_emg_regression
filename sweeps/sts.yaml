@@ -14,26 +14,20 @@ early_terminate:
 parameters:
   # model config
 
-  emg_samples_per_frame:
-    values: [16, 32, 64]
-
-  lr:
-    values: [1e-2, 1e-3, 1e-4]
+  batch_size:
+    values: [32, 64, 128, 256]
   
   slmerr_k:
-    distribution: uniform
-    min: 0.0
-    max: 10.0
+    values: [0.1, 1.0, 10.0]
   
   vel_k:
-    distribution: uniform
-    min: 0.0
-    max: 10.0
+    values: [0.1, 1.0, 10.0]
   
-  vel_k:
-    distribution: uniform
-    min: 0.0
-    max: 10.0
+  accel_k:
+    values: [0.1, 1.0, 10.0]
+  
+  lr:
+    values: [1e-2, 1e-3, 1e-4]
   
   l1:
     values: [1e-2, 1e-3, 1e-4, 1e-5]
@@ -41,20 +35,17 @@ parameters:
   l2:
     values: [1e-2, 1e-3, 1e-4, 1e-5]
   
+  emg_samples_per_frame:
+    values: [16, 32, 64]
+  
   slices:
-    distribution: int_uniform
-    min: 4
-    max: 256
+    values: [4, 8, 16, 32, 128, 256]
   
   patterns:
-    distribution: int_uniform
-    min: 4
-    max: 256
+    values: [4, 8, 16, 32, 128, 256]
   
   frames_per_window:
-    distribution: int_uniform
-    min: 4
-    max: 16
+    values: [4, 8, 12, 16]
   
   slice_width:
     distribution: int_uniform
@@ -62,24 +53,16 @@ parameters:
     max: 128
   
   mx_width:
-    distribution: uniform
-    min: 0.1
-    max: 0.8
+    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
 
   mx_stride:
-    distribution: uniform
-    min: 0.1
-    max: 0.8
+    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
   
   std_width:
-    distribution: uniform
-    min: 0.1
-    max: 0.8
+    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
 
   std_stride:
-    distribution: uniform
-    min: 0.1
-    max: 0.8
+    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
   
   synapse_features:
     values: [32, 64, 128, 512, 1024]
@@ -91,27 +74,30 @@ parameters:
     values: [32, 64, 128, 512, 1024]
 
   # dataset config
+
   epoch_time_limit:
-    value: 600
+    value: 600 # 10 minutes
+  
+  val_split_length:
+    value: 12 # in seconds
+  
+  val_segmentation:
+    value: 4
+  
+  val_patch_length:
+    value: 2 # in seconds
   
   val_sample_ratio:
     value: 0.1
 
-  val_duration:
-    value: 1000 # in frames
-  
-  val_frames_per_patch:
-    value: 320
+  train_split_length:
+    values: [600, 1200, 1800] # 10, 20, 30 minutes
 
-  train_frames_per_patch:
-    distribution: int_uniform
-    min: 30
-    max: 920
+  train_segmentation:
+    values: [8, 16, 32, 64]
 
-  train_sample_ratio:
-    distribution: uniform
-    min: 0.01
-    max: 0.5
+  train_patch_length:
+    values: [1, 2, 3, 4] # in seconds
   
   patience:
     value: 50
