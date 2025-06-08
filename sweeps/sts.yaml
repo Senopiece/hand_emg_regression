@@ -15,6 +15,24 @@ parameters:
   # model config
 
   l1:
+    values: [1e-2, 1e-3, 1e-4]
+  
+  slmerr_k:
+    distribution: uniform
+    min: 0.0
+    max: 10.0
+  
+  vel_k:
+    distribution: uniform
+    min: 0.0
+    max: 10.0
+  
+  vel_k:
+    distribution: uniform
+    min: 0.0
+    max: 10.0
+
+  l1:
     values: [1e-2, 1e-3, 1e-4, 1e-5]
 
   l2:
@@ -69,9 +87,6 @@ parameters:
   predict_hidden_layer_size:
     values: [32, 64, 128, 512, 1024]
   
-  emg_featurizer:
-    value: sts
-
   # dataset config
   epoch_time_limit:
     value: 600
@@ -79,11 +94,8 @@ parameters:
   val_sample_ratio:
     value: 0.1
 
-  val_window:
-    value: 1000
-  
-  val_segmentation:
-    value: 1000
+  val_duration:
+    value: 1000 # in frames
   
   val_frames_per_patch:
     value: 320

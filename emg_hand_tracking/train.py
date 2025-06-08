@@ -328,7 +328,7 @@ def main(
         else:
             raise ValueError("No files found in the dataset directory.")
 
-        update_wandb_config("dataset_path", randdatapath + dataset_path)
+        update_wandb_config("dataset_path", dataset_path)
 
     # Initialize data module
     data_module = DataModule(
