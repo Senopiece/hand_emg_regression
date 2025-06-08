@@ -13,9 +13,6 @@ early_terminate:
 
 parameters:
   # model config
-
-  batch_size:
-    values: [32, 64, 128, 256]
   
   slmerr_k:
     values: [0.1, 1.0, 10.0]
@@ -77,6 +74,9 @@ parameters:
 
   epoch_time_limit:
     value: 600 # 10 minutes
+  
+  batch_size:
+    values: [32, 64, 128, 256]
   
   val_split_length:
     value: 12 # in seconds
