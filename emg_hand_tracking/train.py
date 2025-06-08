@@ -114,11 +114,6 @@ def main(
         "-c",
         help="Run a quick test of the training loop",
     ),
-    emg_featurizer: str = typer.Option(
-        "sts",
-        "--emg_featurizer",
-        help="Use cnn/sts for feature extraction",
-    ),
     no_emg: bool = typer.Option(
         False,
         "--no_emg",
