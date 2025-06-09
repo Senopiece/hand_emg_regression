@@ -12,10 +12,8 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 import wandb
 
-from emg_hand_tracking.dataset.recordings import F
-
 from .dataset import DataModule, calc_frame_duration
-from .model import Model, SubfeatureSettings, SubfeaturesSettings
+from .model import Model
 
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
@@ -104,45 +102,25 @@ def main(
         "--emg_samples_per_frame",
         help="Number of EMG samples per frame",
     ),
-    slices: int = typer.Option(
-        35,
-        "--slices",
-        help="Number of slices",
-    ),
-    patterns: int = typer.Option(
-        64,
-        "--patterns",
-        help="Number of patterns",
-    ),
     context_span: int = typer.Option(
         32,
         "--context_span",
         help="Size of the context window (in ms)",
     ),
-    slice_width: int = typer.Option(
-        10,
-        "--slice_width",
-        help="Width of each slice (in ms)",
+    conv_layer1_kernels: int = typer.Option(
+        640,
+        "--conv_layer1_kernels",
+        help="Number of layer 1 convolution kernels aka out channels aka layer1 size",
     ),
-    mx_width_percent: float = typer.Option(
-        0.8,
-        "--mx_width",
-        help="Width for mx subfeature percentage of slice_width",
+    conv_layer2_kernels: int = typer.Option(
+        512,
+        "--conv_layer2_kernels",
+        help="Number of layer 2 convolution kernels aka out channels aka layer2 size",
     ),
-    mx_stride_percent: float = typer.Option(
-        0.2,
-        "--mx_stride",
-        help="Stride for mx subfeature percentage of slice_width",
-    ),
-    std_width_percent: float = typer.Option(
-        0.8,
-        "--std_width",
-        help="Width for std subfeature percentage of slice_width",
-    ),
-    std_stride_percent: float = typer.Option(
-        0.2,
-        "--std_stride",
-        help="Stride for std subfeature percentage of slice_width",
+    conv_out_kernels: int = typer.Option(
+        128,
+        "--conv_out_kernels",
+        help="Number of layer 3 convolution kernels aka out channels aka layer3 size aka emg output features",
     ),
     synapse_features: int = typer.Option(
         520,
@@ -344,29 +322,14 @@ def main(
         frames_per_sec = 1 / calc_frame_duration(emg_samples_per_frame)
         frames_per_ms = frames_per_sec * 0.001
 
-        emg_per_sec = F
-        emg_per_ms = emg_per_sec * 0.001
-
-        slice_emg_width = int(slice_width * emg_per_ms)  # convert to emg
-
         model = Model(
             # Architecture hyperparameters
             channels=data_module.emg_channels,
             emg_samples_per_frame=emg_samples_per_frame,
-            slices=slices,
-            patterns=patterns,
             context_frames_span=int(context_span * frames_per_ms),
-            slice_emg_width=slice_emg_width,
-            subfeatures=SubfeaturesSettings(
-                mx=SubfeatureSettings(
-                    width=int(mx_width_percent * slice_emg_width),
-                    stride=int(mx_stride_percent * slice_emg_width),
-                ),
-                std=SubfeatureSettings(
-                    width=int(std_width_percent * slice_emg_width),
-                    stride=int(std_stride_percent * slice_emg_width),
-                ),
-            ),
+            conv_layer1_kernels=conv_layer1_kernels,
+            conv_layer2_kernels=conv_layer2_kernels,
+            conv_out_kernels=conv_out_kernels,
             synapse_features=synapse_features,
             muscle_features=muscle_features,
             predict_hidden_layer_size=predict_hidden_layer_size,
