@@ -25,8 +25,8 @@ class InitialStateAndEmg(NamedTuple):
 
 
 class SubfeatureSettings(NamedTuple):
-    width: int = 7
-    stride: int = 3
+    width: int = 7  # in emg samples
+    stride: int = 3  # in emg samples
 
     def windows(self, input_width: int):
         if self.width > input_width:
@@ -62,6 +62,10 @@ class Model(LightningModule):
     ):
         super().__init__()
         self.save_hyperparameters()
+
+        print(context_frames_span)
+        print(slice_emg_width)
+        print(subfeatures)
 
         self.set_pose_format(pose_format)
 

@@ -12,6 +12,8 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 import wandb
 
+from emg_hand_tracking.dataset.recordings import F
+
 from .dataset import DataModule, calc_frame_duration
 from .model import Model, SubfeatureSettings, SubfeaturesSettings
 
@@ -52,27 +54,6 @@ class EpochTimeLimit(Callback):
                 f"\n⚠️  Training time exceeded {self.max_epoch_time}s limit. Stopping training."
             )
             sys.exit(1)
-
-
-def parse_slice_width_percentage_value(value: str, slice_width: int) -> int:
-    try:
-        # Try to convert the value to a float
-        float_value = float(value)
-
-        # Check if it's a percentage (0-1 range)
-        if 0 <= float_value <= 1:
-            return int(float_value * slice_width)
-        else:
-            # Treat as an absolute integer value
-            return int(float_value)
-    except ValueError:
-        # Handle the case where the value is a string ending with '%'
-        if value.endswith("%"):
-            percentage = float(value[:-1])
-            return int((percentage / 100) * slice_width)
-        else:
-            # Directly convert to integer if no special handling is needed
-            return int(value)
 
 
 @app.command()
@@ -143,25 +124,25 @@ def main(
         "--slice_width",
         help="Width of each slice (in ms)",
     ),
-    mx_width_raw: str = typer.Option(
-        "12",
+    mx_width_percent: float = typer.Option(
+        0.8,
         "--mx_width",
-        help="Width for mx subfeature (can be an integer or a percentage of slice_width, e.g., '50%')",
+        help="Width for mx subfeature percentage of slice_width",
     ),
-    mx_stride_raw: str = typer.Option(
-        "4",
+    mx_stride_percent: float = typer.Option(
+        0.2,
         "--mx_stride",
-        help="Stride for mx subfeature (can be an integer or a percentage of slice_width, e.g., '50%')",
+        help="Stride for mx subfeature percentage of slice_width",
     ),
-    std_width_raw: str = typer.Option(
-        "7",
+    std_width_percent: float = typer.Option(
+        0.8,
         "--std_width",
-        help="Width for std subfeature (can be an integer or a percentage of slice_width, e.g., '50%')",
+        help="Width for std subfeature percentage of slice_width",
     ),
-    std_stride_raw: str = typer.Option(
-        "1",
+    std_stride_percent: float = typer.Option(
+        0.2,
         "--std_stride",
-        help="Stride for std subfeature (can be an integer or a percentage of slice_width, e.g., '50%')",
+        help="Stride for std subfeature percentage of slice_width",
     ),
     synapse_features: int = typer.Option(
         520,
@@ -270,12 +251,6 @@ def main(
     fast_dev_run = check
     name = version  # match previous behavior
 
-    # Parse the width and stride values
-    mx_width = parse_slice_width_percentage_value(mx_width_raw, slice_width)
-    mx_stride = parse_slice_width_percentage_value(mx_stride_raw, slice_width)
-    std_width = parse_slice_width_percentage_value(std_width_raw, slice_width)
-    std_stride = parse_slice_width_percentage_value(std_stride_raw, slice_width)
-
     # Set PyTorch precision
     torch.set_float32_matmul_precision("medium")
 
@@ -365,8 +340,15 @@ def main(
 
     else:
         print(f"Making new {name}")
+
         frames_per_sec = 1 / calc_frame_duration(emg_samples_per_frame)
         frames_per_ms = frames_per_sec * 0.001
+
+        emg_per_sec = F
+        emg_per_ms = emg_per_sec * 0.001
+
+        slice_emg_width = int(slice_width * emg_per_ms)  # convert to emg
+
         model = Model(
             # Architecture hyperparameters
             channels=data_module.emg_channels,
@@ -374,15 +356,15 @@ def main(
             slices=slices,
             patterns=patterns,
             context_frames_span=int(context_span * frames_per_ms),
-            slice_emg_width=int(slice_width * frames_per_ms),
+            slice_emg_width=slice_emg_width,
             subfeatures=SubfeaturesSettings(
                 mx=SubfeatureSettings(
-                    width=mx_width,
-                    stride=mx_stride,
+                    width=int(mx_width_percent * slice_emg_width),
+                    stride=int(mx_stride_percent * slice_emg_width),
                 ),
                 std=SubfeatureSettings(
-                    width=std_width,
-                    stride=std_stride,
+                    width=int(std_width_percent * slice_emg_width),
+                    stride=int(std_stride_percent * slice_emg_width),
                 ),
             ),
             synapse_features=synapse_features,
