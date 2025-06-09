@@ -133,31 +133,8 @@ class Model(LightningModule):
                     ),
                 ),
             ),
-            # if emg_featurizer != "cnn"
-            # TODO: to separate branch
-            # else nn.Sequential(
-            #     nn.Conv1d(channels, 640, kernel_size=5, padding=2),
-            #     nn.ReLU(),
-            #     nn.MaxPool1d(kernel_size=2),
-            #     nn.Conv1d(640, 512, kernel_size=3, padding=1),
-            #     nn.ReLU(),
-            #     nn.MaxPool1d(kernel_size=2),
-            #     nn.Conv1d(512, 128, kernel_size=3, padding=1),
-            #     nn.ReLU(),
-            #     nn.AdaptiveAvgPool1d(1),
-            #     nn.Flatten(),
-            # )
         )  # -> (B, W, F), S=W
 
-        # if emg_featurizer == "cnn":
-        #     self.synapse_feature_extract = nn.Sequential(
-        #         nn.Linear(
-        #             128 + self.pos_vel_acc_datasize,
-        #             synapse_features,
-        #         ),
-        #         nn.ReLU(),
-        #     )
-        # else:
         parallel_layer = self.emg_feature_extract.f[2]  # type: ignore
         subfeatures_count = len(parallel_layer.modules_list) - 1
 
