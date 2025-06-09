@@ -344,6 +344,22 @@ def main(
             accel_k=accel_k,
         )
 
+    # Log model size
+    total_params = sum(p.numel() for p in model.parameters())
+    total_size = sum(p.numel() * p.element_size() for p in model.parameters())
+
+    print(f"\nModel size:")
+    print(f"  Parameters: {total_params:,}")
+    print(f"  Memory: {total_size/1024/1024:.2f} MB")
+
+    if logger is not None:
+        wandb.log(
+            {
+                "model/parameters": total_params,
+                "model/size_mb": total_size / 1024 / 1024,
+            }
+        )
+
     # Initialize trainer with callbacks
     trainer = Trainer(
         min_epochs=70,
