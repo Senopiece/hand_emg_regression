@@ -63,10 +63,6 @@ class Model(LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        print(context_frames_span)
-        print(slice_emg_width)
-        print(subfeatures)
-
         self.set_pose_format(pose_format)
 
         self.lr = lr
