@@ -88,7 +88,7 @@ class Model(LightningModule):
 
         self.synapse_feature_extract = nn.Sequential(
             nn.Linear(
-                128 + self.pos_vel_acc_datasize,
+                conv_out_kernels + self.pos_vel_acc_datasize,
                 synapse_features,
             ),
             nn.ReLU(),
