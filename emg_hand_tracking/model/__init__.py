@@ -185,16 +185,16 @@ class Model(LightningModule):
 
         outputs = []
         for emg_features in windows:
-            # (B, frames_per_window-1, 20)
+            # (B, poses_in_context-1, 20)
             initial_poses_vels = initial_poses.diff(dim=1)
-            # (B, frames_per_window-2, 20)
+            # (B, poses_in_context-2, 20)
             initial_poses_accels = initial_poses_vels.diff(dim=1)
 
-            # (B, frames_per_window * 20)
+            # (B, poses_in_context * 20)
             initial_poses_flat = initial_poses.flatten(start_dim=1)
-            # (B, (frames_per_window-1) * 20)
+            # (B, (poses_in_context-1) * 20)
             initial_poses_vels_flat = initial_poses_vels.flatten(start_dim=1)
-            # (B, (frames_per_window-2) * 20)
+            # (B, (poses_in_context-2) * 20)
             initial_poses_accels_flat = initial_poses_accels.flatten(start_dim=1)
 
             pos_vel_acc = torch.cat(
