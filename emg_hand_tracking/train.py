@@ -396,7 +396,7 @@ def main(
     total_params = sum(p.numel() for p in model.parameters())
     total_size = sum(p.numel() * p.element_size() for p in model.parameters())
 
-    print(f"\nModel size:")
+    print(f"Model size:")
     print(f"  Parameters: {total_params:,}")
     print(f"  Memory: {total_size/1024/1024:.2f} MB")
 
