@@ -141,9 +141,14 @@ class _RecordingSlicing(Dataset):
 
         self.emg_per_frame = segment.couples[0].emg.shape[0]
 
-        self.emg = torch.tensor(segment.emg, dtype=torch.float32)
         if no_emg:
-            self.emg = torch.zeros_like(self.emg)
+            # single channel zeroed emg
+            self.emg = torch.zeros(
+                (len(segment.couples) * segment.couples[0].emg.shape[0], 1),
+                dtype=torch.float32,
+            )
+        else:
+            self.emg = torch.tensor(segment.emg, dtype=torch.float32)
 
         self.frames = torch.tensor(segment.frames, dtype=torch.float32)
 
@@ -250,7 +255,7 @@ class DataModule(LightningDataModule):
     @property
     def emg_channels(self):
         # Sneak peek into the dataset
-        return inspect_channels(self.path)
+        return 1 if self.no_emg else inspect_channels(self.path)
 
     @property
     def pose_format(self):
