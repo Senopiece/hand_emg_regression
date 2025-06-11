@@ -95,7 +95,7 @@ parameters:
     value: 0.3
 
   train_split_length:
-    values: [5, 8, 12, 20, 30] # in minutes
+    values: [5, 8, 12, 20, 25, 30] # in minutes
 
   train_segmentation:
     value: 64
