@@ -45,22 +45,22 @@ parameters:
     values: [4, 8, 16, 32, 128, 256]
   
   context_span:
-    values: [32, 64, 128, 256] # in milliseconds
+    values: [32, 64, 128, 256, 400, 800, 1200, 2000] # in milliseconds
   
-  slice_width: # in milliseconds
-    values: [8, 10, 16, 20, 32, 40, 64, 80, 100]
+  slice_width:
+    values: [8, 10, 16, 20, 32, 40, 64, 80, 100, 256, 400, 800] # in milliseconds
   
-  mx_width: # relative to slice_width
-    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  mx_width:
+    values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512] # in milliseconds
 
-  mx_stride: # relative to slice_width
-    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  mx_stride:
+    values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512] # in milliseconds
   
-  std_width: # relative to slice_width
-    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  std_width:
+    values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512] # in milliseconds
 
-  std_stride: # relative to slice_width
-    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  std_stride:
+    values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512] # in milliseconds
   
   synapse_features:
     values: [32, 64, 128, 512, 1024]

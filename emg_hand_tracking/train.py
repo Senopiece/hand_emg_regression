@@ -124,25 +124,25 @@ def main(
         "--slice_width",
         help="Width of each slice (in ms)",
     ),
-    mx_width_percent: float = typer.Option(
-        0.8,
+    mx_width_ms: float = typer.Option(
+        4,
         "--mx_width",
-        help="Width for mx subfeature percentage of slice_width",
+        help="Width for mx subfeature in ms",
     ),
-    mx_stride_percent: float = typer.Option(
-        0.2,
+    mx_stride_ms: float = typer.Option(
+        1,
         "--mx_stride",
-        help="Stride for mx subfeature percentage of slice_width",
+        help="Stride for mx subfeature in ms",
     ),
-    std_width_percent: float = typer.Option(
-        0.8,
+    std_width_ms: float = typer.Option(
+        4,
         "--std_width",
-        help="Width for std subfeature percentage of slice_width",
+        help="Width for std subfeature in ms",
     ),
-    std_stride_percent: float = typer.Option(
-        0.2,
+    std_stride_ms: float = typer.Option(
+        1,
         "--std_stride",
-        help="Stride for std subfeature percentage of slice_width",
+        help="Stride for std subfeature in ms",
     ),
     synapse_features: int = typer.Option(
         520,
@@ -347,7 +347,12 @@ def main(
         emg_per_sec = F
         emg_per_ms = emg_per_sec * 0.001
 
-        slice_emg_width = int(slice_width * emg_per_ms)  # convert to emg
+        # convert ms to emg
+        slice_emg_width = int(slice_width * emg_per_ms)
+        mx_width = int(mx_width_ms * emg_per_ms)
+        mx_stride = int(mx_stride_ms * emg_per_ms)
+        std_width = int(std_width_ms * emg_per_ms)
+        std_stride = int(std_stride_ms * emg_per_ms)
 
         model = Model(
             # Architecture hyperparameters
@@ -359,12 +364,12 @@ def main(
             slice_emg_width=slice_emg_width,
             subfeatures=SubfeaturesSettings(
                 mx=SubfeatureSettings(
-                    width=int(mx_width_percent * slice_emg_width),
-                    stride=int(mx_stride_percent * slice_emg_width),
+                    width=mx_width,
+                    stride=mx_stride,
                 ),
                 std=SubfeatureSettings(
-                    width=int(std_width_percent * slice_emg_width),
-                    stride=int(std_stride_percent * slice_emg_width),
+                    width=std_width,
+                    stride=std_stride,
                 ),
             ),
             synapse_features=synapse_features,
