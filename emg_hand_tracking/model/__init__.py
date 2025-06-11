@@ -24,7 +24,8 @@ class Model(LightningModule):
         pose_format: str,
         channels: int,
         emg_samples_per_frame: int,
-        context_frames_span: int,  # in frames
+        poses_in_context: int,
+        frames_per_window: int,  # in frames
         synapse_features: int,
         muscle_features: int,
         predict_hidden_layer_size: int,
@@ -52,7 +53,8 @@ class Model(LightningModule):
 
         self.channels = channels
         self.emg_samples_per_frame = emg_samples_per_frame
-        self.frames_per_window = context_frames_span
+        self.poses_in_context = poses_in_context
+        self.frames_per_window = frames_per_window
         self.pos_vel_acc_datasize = (
             self.frames_per_window * 20
             + (self.frames_per_window - 1) * 20
@@ -123,6 +125,8 @@ class Model(LightningModule):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
         windows = self.emg_feature_extract(emg).permute(1, 0, 2)  # (W, B, E)
 
+        initial_poses = initial_poses[:, -self.poses_in_context :, :]
+
         outputs = []
         for emg_features in windows:
             # (B, frames_per_window-1, 20)
@@ -182,7 +186,7 @@ class Model(LightningModule):
 
             # Update joint context: remove the oldest frame (along the last dimension)
             # and append the new prediction.
-            # maintain initial_poses shape (B, frames_per_window, 20)
+            # maintain initial_poses shape (B, poses_in_context, 20)
             initial_poses = torch.cat(
                 [initial_poses[:, 1:, :], pos_pred_update.unsqueeze(1)],
                 dim=1,

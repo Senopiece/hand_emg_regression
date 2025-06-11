@@ -107,6 +107,11 @@ def main(
         "--context_span",
         help="Size of the context window (in ms)",
     ),
+    poses_in_context: int = typer.Option(
+        3,
+        "--poses_in_context",
+        help="Number of frames to be utilized for prediction",
+    ),
     conv_layer1_kernels: int = typer.Option(
         640,
         "--conv_layer1_kernels",
@@ -326,7 +331,8 @@ def main(
             # Architecture hyperparameters
             channels=data_module.emg_channels,
             emg_samples_per_frame=emg_samples_per_frame,
-            context_frames_span=int(context_span * frames_per_ms),
+            poses_in_context=poses_in_context,
+            frames_per_window=int(context_span * frames_per_ms),
             conv_layer1_kernels=conv_layer1_kernels,
             conv_layer2_kernels=conv_layer2_kernels,
             conv_out_kernels=conv_out_kernels,
