@@ -56,9 +56,9 @@ class Model(LightningModule):
         self.poses_in_context = poses_in_context
         self.frames_per_window = frames_per_window
         self.pos_vel_acc_datasize = (
-            self.frames_per_window * 20
-            + (self.frames_per_window - 1) * 20
-            + (self.frames_per_window - 2) * 20
+            self.poses_in_context * 20
+            + (self.poses_in_context - 1) * 20
+            + (self.poses_in_context - 2) * 20
         )
 
         self.emg_window_length = self.emg_samples_per_frame * self.frames_per_window
@@ -124,6 +124,8 @@ class Model(LightningModule):
     def _forward(self, emg: torch.Tensor, initial_poses: torch.Tensor):
         emg = emg.permute(0, 2, 1)  # (B, T, C)
         windows = self.emg_feature_extract(emg).permute(1, 0, 2)  # (W, B, E)
+
+        assert initial_poses.shape[1] == self.frames_per_window
 
         initial_poses = initial_poses[:, -self.poses_in_context :, :]
 
