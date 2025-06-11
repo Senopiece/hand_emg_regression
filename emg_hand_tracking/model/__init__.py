@@ -164,7 +164,7 @@ class Model(LightningModule):
             nn.Linear(predict_hidden_layer_size, 20),
         )
 
-        self.filter = WeightedMean(self.frames_per_window + 1)
+        self.filter = WeightedMean(self.poses_in_context + 1)
 
     def set_pose_format(self, pose_format: str):
         """
