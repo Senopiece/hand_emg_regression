@@ -119,6 +119,11 @@ def main(
         "--context_span",
         help="Size of the context window (in ms)",
     ),
+    poses_in_context: int = typer.Option(
+        3,
+        "--poses_in_context",
+        help="Number of frames to be utilized for prediction",
+    ),
     slice_width: int = typer.Option(
         10,
         "--slice_width",
@@ -360,7 +365,8 @@ def main(
             emg_samples_per_frame=emg_samples_per_frame,
             slices=slices,
             patterns=patterns,
-            context_frames_span=int(context_span * frames_per_ms),
+            poses_in_context=poses_in_context,
+            frames_per_window=int(context_span * frames_per_ms),
             slice_emg_width=slice_emg_width,
             subfeatures=SubfeaturesSettings(
                 mx=SubfeatureSettings(
