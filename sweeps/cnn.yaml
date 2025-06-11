@@ -83,7 +83,7 @@ parameters:
     value: 0.3
 
   train_split_length:
-    values: [5, 8, 12, 20] # in minutes
+    values: [5, 8, 12, 20, 30] # in minutes
 
   train_segmentation:
     value: 64
@@ -92,7 +92,7 @@ parameters:
     values: [1, 2, 3, 4] # in seconds
   
   train_sample_ratio:
-    values: [0.01, 0.05, 0.1]
+    values: [0.01, 0.05, 0.1, 0.2]
   
   dataset_path:
     value: /rand:./datasets
