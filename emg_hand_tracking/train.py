@@ -19,20 +19,6 @@ from .model import Model
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
-class ParameterCountLimit(Callback):
-    def __init__(self, max_params: int = 2_000_000):
-        super().__init__()
-        self.max_params = max_params
-
-    def on_fit_start(self, trainer, pl_module):
-        total = sum(p.numel() for p in pl_module.parameters())
-        if total > self.max_params:
-            print(
-                f"\n❌  Model has {total:,} parameters (limit is {self.max_params:,}). Exiting."
-            )
-            sys.exit(1)
-
-
 class EpochTimeLimit(Callback):
     def __init__(self, max_epoch_time_minutes: float = 10.0):
         super().__init__()
@@ -354,9 +340,12 @@ def main(
     total_params = sum(p.numel() for p in model.parameters())
     total_size = sum(p.numel() * p.element_size() for p in model.parameters())
 
-    print(f"Model size:")
-    print(f"  Parameters: {total_params:,}")
-    print(f"  Memory: {total_size/1024/1024:.2f} MB")
+    max_params = 3_000_000
+    if total_params > max_params:
+        print(
+            f"\n❌  Model has {total_params:,} parameters (limit is {max_params}). Exiting."
+        )
+        return
 
     if logger is not None:
         wandb.log(
@@ -375,7 +364,6 @@ def main(
         enable_progress_bar=enable_progress_bar,
         logger=logger,
         callbacks=[
-            ParameterCountLimit(max_params=2_000_000),
             ModelCheckpoint(
                 dirpath="checkpoints",
                 save_weights_only=True,
