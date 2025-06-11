@@ -33,16 +33,16 @@ parameters:
     values: [1e-2, 1e-3, 1e-4]
   
   l1:
-    values: [1.0, 0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
+    values: [1.0, 0, 1e-1, 1e-2, 1e-3, 1e-4]
 
   l2:
-    values: [1.0, 0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
+    values: [1.0, 0, 1e-1, 1e-2, 1e-3, 1e-4]
   
   context_span:
     values: [32, 64, 128, 256, 400, 800, 1200, 2000] # in milliseconds
   
   poses_in_context:
-    values: [3, 4, 8, 12]
+    values: [3, 4, 8, 12, 20]
   
   conv_layer1_kernels:
     values: [32, 40, 64, 80, 128, 180, 256, 320, 512, 640, 820, 1024]
@@ -83,7 +83,7 @@ parameters:
     value: 0.3
 
   train_split_length:
-    values: [5, 8, 12, 20, 30] # in minutes
+    values: [5, 8, 12, 20, 25, 30] # in minutes
 
   train_segmentation:
     value: 64
