@@ -89,7 +89,7 @@ parameters:
     values: [1, 2, 3, 4] # in seconds
 
   train_patches:
-    value: [20000, 64000, 100000, 128000, 160000, 200000]
+    values: [20000, 64000, 100000, 128000, 160000, 200000]
   
   train_sample_ratio:
     values: [0.01, 0.05, 0.1, 0.2]
