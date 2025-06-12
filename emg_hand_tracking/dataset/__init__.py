@@ -279,7 +279,14 @@ class DataModule(LightningDataModule):
                         no_emg=self.no_emg,
                     )
                 )
-            return ConcatDataset(slices)
+            d = ConcatDataset(slices)
+
+            # check dataset length holds
+            assert len(d) == sum(len(s.couples) for s in segments) - len(segments) * (
+                frames_per_patch - 1
+            )
+
+            return d
 
         self.train_dataset = to_dataset(
             "train",
