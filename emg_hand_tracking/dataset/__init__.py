@@ -178,6 +178,7 @@ class DataModule(LightningDataModule):
         train_segmentation: int = 4,
         train_patch_length: float = 2.0,  # in seconds
         train_sample_ratio: float = 0.3,
+        context_span: int = 100,  # duration in ms of which poses to provide the model with as initial poses
         val_split_length: float = 24.0,  # in minutes
         val_segmentation: int = 4,
         val_patch_length: float = 2.0,  # in seconds
@@ -200,34 +201,51 @@ class DataModule(LightningDataModule):
         self.val_patch_length = val_patch_length
         self.val_sample_ratio = val_sample_ratio
 
+        self.couple_duration = 1 / calc_frame_duration(emg_samples_per_frame)
+        self.frames_per_ms = self.couple_duration * 0.001
+
+        self.context_span_frames = int(context_span * self.frames_per_ms)
+
     def _segments(self, stage=None):
         recordings = load_recordings(self.path, self.emg_samples_per_frame)
-        couple_duration = calc_frame_duration(self.emg_samples_per_frame)
 
         # Treat dataset as single recording with many segments
         segments = list(chain(*recordings))
 
-        couples_count = sum(len(seg.couples) for seg in segments)
-        dataset_length = couples_count * couple_duration  # in seconds
+        # Compute patch sizes
+        train_frames_per_patch = int(self.train_patch_length / self.couple_duration)
+        val_frames_per_patch = int(self.val_patch_length / self.couple_duration)
 
-        if dataset_length < (self.train_split_length + self.val_split_length) * 60:
-            raise ValueError(
-                f"Dataset length {dataset_length/60}m is less than the sum of train and validation split lengths "
-                f"{self.train_split_length + self.val_split_length}m. "
-                "Please adjust the split lengths or use a larger dataset."
-            )
+        # Tweak val patch len so the ms to predict in not decreased with increased context span
+        val_frames_per_patch += self.context_span_frames
 
         # Treat dataset as single recording with many segments
         segments = list(chain(*recordings))
 
-        couples_per_minute = 60 / couple_duration
+        couples_per_minute = 60 / self.couple_duration
         train_split_size_in_frames = int(self.train_split_length * couples_per_minute)
         val_split_size_in_frames = int(self.val_split_length * couples_per_minute)
 
+        # Tweak val split len so that after adjusting the ms to predict in not decreased with increased context span, the number of samples is not decreased
+        # NOTE:
+        # it's all inspired by the equation : number_of_patches = total_len - number_of_segments*(patch_len - 1)
+        # so that we have:
+        # p1 = L1 - n(w - 1) : number of patches without accounting to context span = val_split_size_in_frames - segments*(val_frames_per_patch - 1)
+        # w2 = w + c : but we need to increase the patch size so that the frames a model is needed to predict is not decreased with increased context window
+        # p2 = L2 - n(w2 - 1) : number of patches by accounting to context span = val_split_size_in_frames2 - segments*(val_frames_per_patch + context_span - 1)
+        # p1 = p2 : as we also need the number of samples to remain the same no matter what context span there is
+        # solving, we get L2 = L1 + nc, so that after increasing the patch size to account for context span, we need to also increase the overall validation span to hold the number of patches the same
+        val_split_size_in_frames += self.val_segmentation * self.context_span_frames
+
         # Random offset
+        couples_count = sum(len(seg.couples) for seg in segments)
         offset_range = (
             couples_count - val_split_size_in_frames - train_split_size_in_frames
         )
+
+        if offset_range < 0:
+            raise ValueError("Insufficient dataset length")
+
         offset = randint(0, offset_range - 1)
 
         # Skip offset
@@ -240,10 +258,6 @@ class DataModule(LightningDataModule):
         # Collect val
         val_segments, _ = collect_span(segments, val_split_size_in_frames)
         val_segments = segmentate("Val", val_segments, self.val_segmentation)
-
-        # Compute patch sizes
-        train_frames_per_patch = int(self.train_patch_length / couple_duration)
-        val_frames_per_patch = int(self.val_patch_length / couple_duration)
 
         return (
             train_frames_per_patch,

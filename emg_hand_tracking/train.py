@@ -284,6 +284,7 @@ def main(
         train_segmentation=train_segmentation,
         train_patch_length=train_patch_length,
         train_sample_ratio=train_sample_ratio,
+        context_span=context_span,
         val_split_length=val_split_length,
         val_segmentation=val_segmentation,
         val_patch_length=val_patch_length,
@@ -310,15 +311,12 @@ def main(
     else:
         print(f"Making new {name}")
 
-        frames_per_sec = 1 / calc_frame_duration(emg_samples_per_frame)
-        frames_per_ms = frames_per_sec * 0.001
-
         model = Model(
             # Architecture hyperparameters
             channels=data_module.emg_channels,
             emg_samples_per_frame=emg_samples_per_frame,
             poses_in_context=poses_in_context,
-            frames_per_window=int(context_span * frames_per_ms),
+            frames_per_window=data_module.context_span_frames,
             conv_layer1_kernels=conv_layer1_kernels,
             conv_layer2_kernels=conv_layer2_kernels,
             conv_out_kernels=conv_out_kernels,
