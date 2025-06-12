@@ -12,9 +12,11 @@ from tqdm import tqdm
 from .recordings import (
     HandEmgRecordingSegment,
     calc_frame_duration,
+    dataset_size,
     get_pose_format,
     inspect_channels,
     load_recordings,
+    recording_size,
 )
 
 
@@ -32,6 +34,9 @@ warnings.filterwarnings(
 
 
 def collect_span(segments: List[HandEmgRecordingSegment], length: int):
+    if length == 0:
+        return [], segments
+
     pos = 0
 
     for i, seg in enumerate(segments):
@@ -120,6 +125,8 @@ class DataModule(LightningDataModule):
         val_patches: int = 4,
         val_prediction_length: float = 2.0,  # in seconds
         val_sample_ratio: float = 0.3,
+        split_threshold: float = 5.0,  # minutes
+        split_type: str = "relative_take",  # "relative_take" or "by_sequence"
     ):
         super().__init__()
 
@@ -137,35 +144,38 @@ class DataModule(LightningDataModule):
         self.val_patches = val_patches
         self.val_prediction_length = val_prediction_length
         self.val_sample_ratio = val_sample_ratio
+        self.split_type = split_type
 
         self.couple_duration = calc_frame_duration(emg_samples_per_frame)
+        self.couples_per_minute = 60 / self.couple_duration
         self.frames_per_ms = 1 / (1000 * self.couple_duration)
 
-        self.context_span_frames = int(context_span * self.frames_per_ms)
+        self.split_threshold = split_threshold * self.couples_per_minute
 
-    def _segments(self, stage=None):
+        self.context_span_frames = int(context_span * self.frames_per_ms)
+        self.train_size_in_frames = int(self.train_length * self.couples_per_minute)
+        self.val_size_in_frames = int(self.val_length * self.couples_per_minute)
+
+        self.train_frames_per_patch = (
+            int(self.train_prediction_length / self.couple_duration)
+            + self.context_span_frames
+        )
+        self.val_frames_per_patch = (
+            int(self.val_prediction_length / self.couple_duration)
+            + self.context_span_frames
+        )
+
+    def _segments_by_sequence(self, stage=None):
         recordings = load_recordings(self.path, self.emg_samples_per_frame)
 
         # Treat dataset as single recording with many segments
         segments = list(chain(*recordings))
 
-        # Compute patch sizes
-        train_frames_per_patch = (
-            int(self.train_prediction_length / self.couple_duration)
-            + self.context_span_frames
-        )
-        val_frames_per_patch = (
-            int(self.val_prediction_length / self.couple_duration)
-            + self.context_span_frames
-        )
-
-        couples_per_minute = 60 / self.couple_duration
-        train_size_in_frames = int(self.train_length * couples_per_minute)
-        val_size_in_frames = int(self.val_length * couples_per_minute)
-
         # Random offset
-        couples_count = sum(len(seg.couples) for seg in segments)
-        offset_range = couples_count - val_size_in_frames - train_size_in_frames
+        couples_count = recording_size(segments)
+        offset_range = (
+            couples_count - self.val_size_in_frames - self.train_size_in_frames
+        )
 
         if offset_range <= 0:
             raise ValueError("Insufficient dataset length")
@@ -176,14 +186,64 @@ class DataModule(LightningDataModule):
         _, segments = collect_span(segments, offset)
 
         # Collect train
-        train_segments, segments = collect_span(segments, train_size_in_frames)
+        train_segments, segments = collect_span(segments, self.train_size_in_frames)
 
         # Collect val
-        val_segments, _ = collect_span(segments, val_size_in_frames)
+        val_segments, _ = collect_span(segments, self.val_size_in_frames)
 
         return (
-            train_frames_per_patch,
-            val_frames_per_patch,
+            train_segments,
+            val_segments,
+        )
+
+    def _segments_by_relative_take(self, stage=None):
+        # Recordings contribute to val and train according to their length
+
+        recordings = load_recordings(self.path, self.emg_samples_per_frame)
+
+        # Sort recordings by length
+        recordings.sort(key=lambda r: recording_size(r), reverse=True)
+
+        total_subset_size = self.train_size_in_frames + self.val_size_in_frames
+        train_ratio = self.train_size_in_frames / total_subset_size
+        val_ratio = self.val_size_in_frames / total_subset_size
+
+        # Find ratio to sample
+        while True:
+            if len(recordings) == 0:
+                raise ValueError("Insufficient dataset length")
+
+            ratio = total_subset_size / dataset_size(recordings)
+
+            if ratio > 1.0:
+                raise ValueError("Insufficient dataset length")
+
+            if int(recording_size(recordings[-1]) * ratio) >= self.split_threshold:
+                break
+            else:
+                recordings = recordings[:-1]  # remove the smallest recording
+
+        # Collect segments from recordings
+        train_segments = []
+        val_segments = []
+        for rec in recordings:
+            couples_count = recording_size(rec)
+            subset_size = int(couples_count * ratio)
+            offset_range = couples_count - subset_size
+            offset = randint(0, offset_range - 1)
+
+            assert offset >= 0, "Offset must be non-negative"
+
+            _, rec = collect_span(rec, offset)
+            local_train_segments, rec = collect_span(
+                rec, int(train_ratio * subset_size)
+            )
+            local_val_segments, _ = collect_span(rec, int(val_ratio * subset_size))
+
+            train_segments.extend(local_train_segments)
+            val_segments.extend(local_val_segments)
+
+        return (
             train_segments,
             val_segments,
         )
@@ -199,9 +259,15 @@ class DataModule(LightningDataModule):
         return get_pose_format(self.path)
 
     def setup(self, stage=None):
-        train_frames_per_patch, val_frames_per_patch, train_segments, val_segments = (
-            self._segments()
-        )
+        if self.split_type == "by_sequence":
+            train_segments, val_segments = self._segments_by_sequence()
+        elif self.split_type == "relative_take":
+            train_segments, val_segments = self._segments_by_relative_take()
+        else:
+            raise ValueError(
+                f"Unknown split type: {self.split_type}. "
+                "Use 'by_sequence' or 'relative_take'."
+            )
 
         def to_dataset(
             name: str,
@@ -235,13 +301,13 @@ class DataModule(LightningDataModule):
         self.train_dataset = to_dataset(
             "train",
             train_segments,
-            train_frames_per_patch,
+            self.train_frames_per_patch,
             self.train_patches,
         )
         self.val_dataset = to_dataset(
             "val",
             val_segments,
-            val_frames_per_patch,
+            self.val_frames_per_patch,
             self.val_patches,
         )
 

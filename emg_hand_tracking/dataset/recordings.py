@@ -30,6 +30,14 @@ class HandEmgRecordingSegment(NamedTuple):
 HandEmgRecording = List[HandEmgRecordingSegment]
 
 
+def recording_size(recording: HandEmgRecording) -> int:
+    return sum(len(segment.couples) for segment in recording)
+
+
+def dataset_size(recordings: List[HandEmgRecording]) -> int:
+    return sum(recording_size(rec) for rec in recordings)
+
+
 def _resample_akima(array: np.ndarray, target_size: int) -> np.ndarray:
     """
     Resample a signal array to a target size using Akima interpolation

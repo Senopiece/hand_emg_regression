@@ -168,6 +168,16 @@ def main(
         "--val_sample_ratio",
         help="Ratio of validation patches to use in one epoch",
     ),
+    split_threshold: float = typer.Option(
+        5,
+        "--split_threshold",
+        help="Threshold for a record size (in minutes) to be split into train and validation",
+    ),
+    split_type: str = typer.Option(
+        "relative_take",
+        "--split_type",
+        help="Type of split to use for train/val: 'by_sequence' or 'relative_take'",
+    ),
     batch_size: int = typer.Option(
         128,
         "--batch_size",
@@ -289,6 +299,8 @@ def main(
         val_patches=val_patches,
         val_prediction_length=val_prediction_length,
         val_sample_ratio=val_sample_ratio,
+        split_threshold=split_threshold,
+        split_type=split_type,
     )
 
     # Load or create model
