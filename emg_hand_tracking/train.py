@@ -306,6 +306,7 @@ def main(
         train_patches=train_patches,
         train_prediction_length=train_prediction_length,
         train_sample_ratio=train_sample_ratio,
+        context_span=context_span,
         val_length=val_length,
         val_patches=val_patches,
         val_prediction_length=val_prediction_length,
