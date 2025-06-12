@@ -6,7 +6,7 @@ import warnings
 from torch.utils.data import Dataset, RandomSampler, Subset
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, ConcatDataset
-from typing import Any, List, NamedTuple
+from typing import List, NamedTuple
 from tqdm import tqdm
 
 from .recordings import (
