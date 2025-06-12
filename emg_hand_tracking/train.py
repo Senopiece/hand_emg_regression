@@ -16,7 +16,7 @@ from .dataset import DataModule
 from .model import Model
 
 
-app = typer.Typer()  # pretty_exceptions_show_locals=False)
+app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 class EpochTimeLimit(Callback):
