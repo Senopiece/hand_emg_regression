@@ -216,8 +216,8 @@ class DataModule(LightningDataModule):
         train_frames_per_patch = int(self.train_patch_length / self.couple_duration)
         val_frames_per_patch = int(self.val_patch_length / self.couple_duration)
 
-        print(train_frames_per_patch)
-        print(val_frames_per_patch)
+        print(self.train_patch_length, self.couple_duration)
+        print(self.val_patch_length, self.couple_duration)
 
         # Tweak val patch len so the ms to predict in not decreased with increased context span
         val_frames_per_patch += self.context_span_frames
