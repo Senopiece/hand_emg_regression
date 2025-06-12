@@ -293,6 +293,11 @@ class DataModule(LightningDataModule):
             d = ConcatDataset(slices)
 
             # check dataset length holds
+            print(
+                len(d),
+                sum(len(s.couples) for s in segments)
+                - len(segments) * (frames_per_patch - 1),
+            )
             assert len(d) == sum(len(s.couples) for s in segments) - len(segments) * (
                 frames_per_patch - 1
             )
