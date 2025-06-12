@@ -150,7 +150,7 @@ def main(
     ),
     val_length: float = typer.Option(
         0.4,
-        "--val_split_length",
+        "--val_length",
         help="Size of the val subset (in minutes)",
     ),
     val_patches: int = typer.Option(
