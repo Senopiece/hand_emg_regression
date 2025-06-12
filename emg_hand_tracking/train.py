@@ -12,11 +12,11 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 import wandb
 
-from .dataset import DataModule, calc_frame_duration
+from .dataset import DataModule
 from .model import Model
 
 
-app = typer.Typer(pretty_exceptions_show_locals=False)
+app = typer.Typer()  # pretty_exceptions_show_locals=False)
 
 
 class EpochTimeLimit(Callback):
