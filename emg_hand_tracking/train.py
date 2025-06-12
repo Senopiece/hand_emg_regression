@@ -150,40 +150,40 @@ def main(
         "--predict_hidden_layer_size",
         help="Size of the hidden layer for prediction",
     ),
-    train_split_length: float = typer.Option(
+    train_length: float = typer.Option(
         8.0,
-        "--train_split_length",
+        "--train_length",
         help="Size of the train subset (in minutes)",
     ),
-    train_segmentation: int = typer.Option(
+    train_patches: int = typer.Option(
         64,
-        "--train_segmentation",
-        help="Segmentation of the train subset",
+        "--train_patches",
+        help="Number of patches to sample of the train subset",
     ),
-    train_patch_length: float = typer.Option(
+    train_prediction_length: float = typer.Option(
         2.0,
-        "--train_patch_length",
-        help="Size of the train path in the batch (in seconds)",
+        "--train_prediction_length",
+        help="Size of the patch part to to predict in train (in seconds)",
     ),
     train_sample_ratio: float = typer.Option(
         0.1,
         "--train_sample_ratio",
         help="Ratio of train patches to use in one epoch",
     ),
-    val_split_length: float = typer.Option(
+    val_length: float = typer.Option(
         0.4,
-        "--val_split_length",
+        "--val_length",
         help="Size of the val subset (in minutes)",
     ),
-    val_segmentation: int = typer.Option(
+    val_patches: int = typer.Option(
         12,
-        "--val_segmentation",
-        help="Segmentation of the val subset",
+        "--val_patches",
+        help="Number of patches to sample of the val subset",
     ),
-    val_patch_length: float = typer.Option(
+    val_prediction_length: float = typer.Option(
         2.0,
-        "--val_patch_length",
-        help="Size of the val path in the batch (in seconds)",
+        "--val_prediction_length",
+        help="Size of the patch part to to predict in val (in seconds)",
     ),
     val_sample_ratio: float = typer.Option(
         0.1,
@@ -302,13 +302,13 @@ def main(
         emg_samples_per_frame=emg_samples_per_frame,
         no_emg=no_emg,
         batch_size=batch_size,
-        train_split_length=train_split_length,
-        train_segmentation=train_segmentation,
-        train_patch_length=train_patch_length,
+        train_length=train_length,
+        train_patches=train_patches,
+        train_prediction_length=train_prediction_length,
         train_sample_ratio=train_sample_ratio,
-        val_split_length=val_split_length,
-        val_segmentation=val_segmentation,
-        val_patch_length=val_patch_length,
+        val_length=val_length,
+        val_patches=val_patches,
+        val_prediction_length=val_prediction_length,
         val_sample_ratio=val_sample_ratio,
     )
 
@@ -332,9 +332,6 @@ def main(
     else:
         print(f"Making new {name}")
 
-        frames_per_sec = 1 / calc_frame_duration(emg_samples_per_frame)
-        frames_per_ms = frames_per_sec * 0.001
-
         emg_per_sec = F
         emg_per_ms = emg_per_sec * 0.001
 
@@ -352,7 +349,7 @@ def main(
             slices=slices,
             patterns=patterns,
             poses_in_context=poses_in_context,
-            frames_per_window=int(context_span * frames_per_ms),
+            frames_per_window=data_module.context_span_frames,
             slice_emg_width=slice_emg_width,
             subfeatures=SubfeaturesSettings(
                 mx=SubfeatureSettings(
