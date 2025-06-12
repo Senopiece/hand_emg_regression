@@ -243,7 +243,7 @@ class DataModule(LightningDataModule):
             couples_count - val_split_size_in_frames - train_split_size_in_frames
         )
 
-        if offset_range < 0:
+        if offset_range <= 0:
             raise ValueError("Insufficient dataset length")
 
         offset = randint(0, offset_range - 1)
