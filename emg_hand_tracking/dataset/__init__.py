@@ -201,8 +201,8 @@ class DataModule(LightningDataModule):
         self.val_patch_length = val_patch_length
         self.val_sample_ratio = val_sample_ratio
 
-        self.couple_duration = 1 / calc_frame_duration(emg_samples_per_frame)
-        self.frames_per_ms = self.couple_duration * 0.001
+        self.couple_duration = calc_frame_duration(emg_samples_per_frame)
+        self.frames_per_ms = 1 / (1000 * self.couple_duration)
 
         self.context_span_frames = int(context_span * self.frames_per_ms)
 
@@ -215,9 +215,6 @@ class DataModule(LightningDataModule):
         # Compute patch sizes
         train_frames_per_patch = int(self.train_patch_length / self.couple_duration)
         val_frames_per_patch = int(self.val_patch_length / self.couple_duration)
-
-        print(self.train_patch_length, self.couple_duration)
-        print(self.val_patch_length, self.couple_duration)
 
         # Tweak val patch len so the ms to predict in not decreased with increased context span
         val_frames_per_patch += self.context_span_frames
