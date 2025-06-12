@@ -82,26 +82,26 @@ parameters:
   batch_size:
     values: [32, 64, 128, 256]
   
-  val_split_length:
+  val_length:
     value: 0.4 # in minutes
   
-  val_segmentation:
-    value: 12
-  
-  val_patch_length:
+  val_prediction_length:
     value: 2 # in seconds
+  
+  val_patches:
+    value: 420
   
   val_sample_ratio:
     value: 0.3
 
-  train_split_length:
+  train_length:
     values: [5, 8, 12, 20, 25, 30] # in minutes
-
-  train_segmentation:
-    value: 64
-
-  train_patch_length:
+  
+  train_prediction_length:
     values: [1, 2, 3, 4] # in seconds
+
+  train_patches:
+    values: [20000, 64000, 100000, 128000, 160000, 200000]
   
   train_sample_ratio:
     values: [0.01, 0.05, 0.1, 0.2]
