@@ -155,8 +155,8 @@ class DataModule(LightningDataModule):
         val_patches: int = 4,
         val_prediction_length: float = 2.0,  # in seconds
         val_sample_ratio: float = 0.3,
-        train_split_threshold: float = 0.2,  # minutes
-        val_split_threshold: float = 1.0,  # seconds
+        train_split_threshold: float = 0.4,  # minutes
+        val_split_threshold: float = 2.1,  # seconds
         split_type: str = "relative_take",  # "relative_take" or "by_sequence"
     ):
         super().__init__()
