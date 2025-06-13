@@ -1,0 +1,118 @@
+# General search for the best model on averaged dataset
+
+method: bayes
+
+metric:
+  name: val_lmerr
+  goal: minimize
+
+early_terminate:
+  type: hyperband
+  min_iter: 70
+  max_iter: 300
+
+parameters:
+  patience:
+    value: 50
+  
+  emg_samples_per_frame:
+    values: [16, 32, 64]
+
+  # model
+  
+  slmerr_k:
+    values: [0.1, 1.0, 10.0]
+  
+  vel_k:
+    values: [0.1, 1.0, 10.0]
+  
+  accel_k:
+    values: [0.1, 1.0, 10.0]
+  
+  lr:
+    values: [1e-2, 1e-3, 1e-4]
+  
+  l1:
+    values: [1.0, 0, 1e-1, 1e-2, 1e-3, 1e-4]
+
+  l2:
+    values: [1.0, 0, 1e-1, 1e-2, 1e-3, 1e-4]
+  
+  slices:
+    values: [4, 8, 16, 32, 128, 256]
+  
+  patterns:
+    values: [4, 8, 16, 32, 128, 256]
+  
+  context_span:
+    values: [32, 64, 128, 256, 400, 800, 1200, 2000] # in milliseconds
+  
+  poses_in_context:
+    values: [3, 4, 8, 12, 20]
+  
+  slice_width:
+    values: [8, 10, 16, 20, 32, 40, 64, 80, 100, 256, 400, 800] # in milliseconds
+  
+  mx_width:
+    values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512] # in milliseconds
+
+  mx_stride:
+    values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512] # in milliseconds
+  
+  std_width:
+    values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512] # in milliseconds
+
+  std_stride:
+    values: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512] # in milliseconds
+  
+  synapse_features:
+    values: [32, 64, 128, 512, 1024]
+  
+  muscle_features:
+    values: [32, 64, 128, 512, 1024]
+  
+  predict_hidden_layer_size:
+    values: [32, 64, 128, 512, 1024]
+
+  # dataset
+
+  epoch_time_limit:
+    value: 10 # in minutes
+  
+  batch_size:
+    values: [32, 64, 128, 256]
+  
+  val_length:
+    value: 0.6 # in minutes
+  
+  val_prediction_length:
+    value: 2 # in seconds
+  
+  val_patches:
+    value: 256
+  
+  val_sample_ratio:
+    value: 0.5
+
+  train_length:
+    values: [5, 8, 12, 20, 25, 30] # in minutes
+  
+  train_prediction_length:
+    values: [1, 2, 3, 4] # in seconds
+
+  train_patches:
+    values: [7000, 10000, 14000, 18000, 20000, 64000, 100000, 128000, 160000, 200000]
+  
+  train_sample_ratio:
+    values: [0.01, 0.05, 0.1, 0.2]
+  
+  dataset_path:
+    value: /rand:./datasets
+
+command:
+  - ${env}
+  - ${interpreter}
+  - -m
+  - emg_hand_tracking.train
+  - -n
+  - ${args}
