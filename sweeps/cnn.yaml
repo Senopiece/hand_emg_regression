@@ -77,10 +77,10 @@ parameters:
     value: 2 # in seconds
   
   val_patches:
-    value: 420
+    value: 256
   
   val_sample_ratio:
-    value: 0.3
+    value: 0.5
 
   train_length:
     values: [5, 8, 12, 20, 25, 30] # in minutes
