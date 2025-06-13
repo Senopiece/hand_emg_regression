@@ -9,10 +9,11 @@ from torch.utils.data import DataLoader, ConcatDataset
 from typing import List, NamedTuple
 from tqdm import tqdm
 
+from .sample import uniform_bounded_sum
+
 from .recordings import (
     HandEmgRecordingSegment,
     calc_frame_duration,
-    dataset_size,
     get_pose_format,
     inspect_channels,
     load_recordings,
@@ -64,6 +65,35 @@ def collect_span(segments: List[HandEmgRecordingSegment], length: int):
 
     # must not be reached because of dataset length check above
     raise ValueError("Ran out of segments")
+
+
+def take_across(recordings, size, min_length, offset):
+    # Trim too short recordings
+    recordings = [rec for rec in recordings if recording_size(rec) >= min_length]
+
+    # Collect intervals
+    sizes = uniform_bounded_sum(
+        size,
+        [(min_length, recording_size(r)) for r in recordings],
+    )
+    collected = []
+    remaining = []
+    for rec, size in zip(recordings, sizes):
+        couples_count = recording_size(rec)
+        if offset:
+            offset_range = couples_count - size
+            offset = randint(0, offset_range - 1)
+            assert offset >= 0, "Offset must be non-negative"
+        else:
+            offset = 0
+
+        _, rec = collect_span(rec, offset)
+        segments, rec = collect_span(rec, size)
+
+        collected.extend(segments)
+        remaining.append(rec)
+
+    return collected, remaining
 
 
 # The dataset item
@@ -125,7 +155,8 @@ class DataModule(LightningDataModule):
         val_patches: int = 4,
         val_prediction_length: float = 2.0,  # in seconds
         val_sample_ratio: float = 0.3,
-        split_threshold: float = 5.0,  # minutes
+        train_split_threshold: float = 0.2,  # minutes
+        val_split_threshold: float = 1.0,  # seconds
         split_type: str = "relative_take",  # "relative_take" or "by_sequence"
     ):
         super().__init__()
@@ -147,10 +178,14 @@ class DataModule(LightningDataModule):
         self.split_type = split_type
 
         self.couple_duration = calc_frame_duration(emg_samples_per_frame)
+        self.couples_per_second = 1 / self.couple_duration
         self.couples_per_minute = 60 / self.couple_duration
         self.frames_per_ms = 1 / (1000 * self.couple_duration)
 
-        self.split_threshold = split_threshold * self.couples_per_minute
+        self.train_split_threshold = int(
+            train_split_threshold * self.couples_per_minute
+        )
+        self.val_split_threshold = int(val_split_threshold * self.couples_per_second)
 
         self.context_span_frames = int(context_span * self.frames_per_ms)
         self.train_size_in_frames = int(self.train_length * self.couples_per_minute)
@@ -201,47 +236,15 @@ class DataModule(LightningDataModule):
 
         recordings = load_recordings(self.path, self.emg_samples_per_frame)
 
-        # Sort recordings by length
-        recordings.sort(key=lambda r: recording_size(r), reverse=True)
-
-        total_subset_size = self.train_size_in_frames + self.val_size_in_frames
-        train_ratio = self.train_size_in_frames / total_subset_size
-        val_ratio = self.val_size_in_frames / total_subset_size
-
-        # Find ratio to sample
-        while True:
-            if len(recordings) == 0:
-                raise ValueError("Insufficient dataset length")
-
-            ratio = total_subset_size / dataset_size(recordings)
-
-            if ratio > 1.0:
-                raise ValueError("Insufficient dataset length")
-
-            if int(recording_size(recordings[-1]) * ratio) >= self.split_threshold:
-                break
-            else:
-                recordings = recordings[:-1]  # remove the smallest recording
-
-        # Collect segments from recordings
-        train_segments = []
-        val_segments = []
-        for rec in recordings:
-            couples_count = recording_size(rec)
-            subset_size = int(couples_count * ratio)
-            offset_range = couples_count - subset_size
-            offset = randint(0, offset_range - 1)
-
-            assert offset >= 0, "Offset must be non-negative"
-
-            _, rec = collect_span(rec, offset)
-            local_train_segments, rec = collect_span(
-                rec, int(train_ratio * subset_size)
-            )
-            local_val_segments, _ = collect_span(rec, int(val_ratio * subset_size))
-
-            train_segments.extend(local_train_segments)
-            val_segments.extend(local_val_segments)
+        train_segments, recordings = take_across(
+            recordings,
+            self.train_size_in_frames,
+            self.train_split_threshold,
+            offset=True,
+        )
+        val_segments, recordings = take_across(
+            recordings, self.val_size_in_frames, self.val_split_threshold, offset=False
+        )
 
         return (
             train_segments,
