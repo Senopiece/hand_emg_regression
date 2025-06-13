@@ -74,7 +74,7 @@ def take_across(recordings, size, min_length, offset):
     # Collect intervals
     sizes = uniform_bounded_sum(
         size,
-        [(min_length, recording_size(r)) for r in recordings],
+        [(0, recording_size(r) - 1) for r in recordings],
     )
     collected = []
     remaining = []
