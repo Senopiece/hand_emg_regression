@@ -83,7 +83,7 @@ parameters:
     values: [32, 64, 128, 256]
   
   val_length:
-    value: 0.4 # in minutes
+    value: 0.6 # in minutes
   
   val_prediction_length:
     value: 2 # in seconds
