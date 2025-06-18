@@ -75,7 +75,7 @@ parameters:
     value: 10 # in minutes
   
   batch_size:
-    value: 64
+    value: 32
   
   val_length:
     value: 0.6 # in minutes
