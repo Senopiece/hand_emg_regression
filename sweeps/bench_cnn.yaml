@@ -1,0 +1,101 @@
+  # Benchmark on random datasets with a focus on the CNN model.
+
+  method: random
+
+  metric:
+    name: val_lmerr
+    goal: minimize
+
+  parameters:
+    patience:
+      value: 50
+    
+    emg_samples_per_frame:
+      value: 32
+
+    # model
+    
+    slmerr_k:
+      value: 1.0
+    
+    vel_k:
+      value: 1.0
+    
+    accel_k:
+      value: 10.0
+    
+    lr:
+      value: 1e-4
+    
+    l1:
+      value: 1e-1
+
+    l2:
+      value: 1e-4
+    
+    context_span:
+      value: 512 # in milliseconds
+    
+    poses_in_context:
+      value: 6
+    
+    conv_layer1_kernels:
+      value: 32
+    
+    conv_layer2_kernels:
+      value: 32
+    
+    conv_out_kernels:
+      value: 32
+    
+    synapse_features:
+      value: 512
+    
+    muscle_features:
+      value: 32
+    
+    predict_hidden_layer_size:
+      value: 128
+
+    # dataset
+
+    epoch_time_limit:
+      value: 10 # in minutes
+    
+    batch_size:
+      value: 32
+    
+    val_length:
+      value: 0.6 # in minutes
+    
+    val_prediction_length:
+      value: 2 # in seconds
+    
+    val_patches:
+      value: 256
+    
+    val_sample_ratio:
+      value: 0.5
+
+    train_length:
+      value: 14 # in minutes
+    
+    train_prediction_length:
+      value: 2 # in seconds
+
+    train_patches:
+      value: 20000
+    
+    train_sample_ratio:
+      value: 0.05
+    
+    dataset_path:
+      value: /rand:./datasets
+
+  command:
+    - ${env}
+    - ${interpreter}
+    - -m
+    - emg_hand_tracking.train
+    - -n
+    - ${args}
