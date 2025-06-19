@@ -40,25 +40,25 @@ parameters:
     value: 32
   
   context_span:
-    value: 256 # in milliseconds
+    value: 512 # in milliseconds
   
   poses_in_context:
-    value: 4
+    value: 6
   
   slice_width:
-    value: 40 # in milliseconds
+    value: 128 # in milliseconds
   
   mx_width:
-    value: 16 # in milliseconds
+    value: 64 # in milliseconds
 
   mx_stride:
-    value: 16 # in milliseconds
+    value: 60 # in milliseconds
   
   std_width:
-    value: 16 # in milliseconds
+    value: 64 # in milliseconds
 
   std_stride:
-    value: 16 # in milliseconds
+    value: 60 # in milliseconds
   
   synapse_features:
     value: 512
